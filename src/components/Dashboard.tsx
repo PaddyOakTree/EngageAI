@@ -1,141 +1,268 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import Header from './Header';
-import { TrendingUp, Users, Award, Calendar, MessageSquare, BarChart3, Clock, Star } from 'lucide-react';
-
-interface RecentSession {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  engagement: number;
-  attendees: number;
-  status: string;
-}
+import { 
+  Calendar, 
+  Clock, 
+  TrendingUp, 
+  Award, 
+  Users, 
+  MessageSquare,
+  Star,
+  Brain,
+  Target,
+  Trophy,
+  CheckCircle,
+  Circle
+} from 'lucide-react';
 
 interface Achievement {
-  icon: any;
-  title: string;
+  id: string;
+  name: string;
   description: string;
+  date: string;
+  icon: string;
   earned: boolean;
+  progress?: number;
+  target?: number;
 }
 
-interface EngagementData {
-  month: string;
-  score: number;
+interface QuickStat {
+  icon: any;
+  label: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down';
 }
 
 const Dashboard: React.FC = () => {
   const auth = useContext(AuthContext);
   const user = auth?.user;
-  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [engagementData, setEngagementData] = useState<EngagementData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    }
-  }, [user]);
+  const [error, setError] = useState<string | null>(null);
+  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [quickStats, setQuickStats] = useState<QuickStat[]>([]);
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   const fetchDashboardData = async () => {
     if (!user) return;
 
-    try {
-      setLoading(true);
-      setError('');
+    setLoading(true);
+    setError(null);
 
-      // Fetch user's recent session participation
+    try {
+      // Fetch upcoming sessions
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('sessions')
+        .select('*')
+        .gte('date', new Date().toISOString().split('T')[0])
+        .eq('status', 'upcoming')
+        .order('date', { ascending: true })
+        .limit(5);
+
+      if (sessionsError) throw sessionsError;
+
+      // Fetch user's session participation for recent activity
       const { data: participation, error: participationError } = await supabase
         .from('session_participants')
         .select(`
-          sessions (
-            id,
-            title,
-            date,
-            start_time,
-            end_time,
-            attendees,
-            engagement_score,
-            status
-          )
+          *,
+          sessions (*)
         `)
         .eq('user_id', user.id)
         .order('joined_at', { ascending: false })
-        .limit(3);
+        .limit(5);
 
-      if (participationError) {
-        console.error('Error fetching participation:', participationError);
-        setError('Failed to load recent sessions');
-        return;
-      }
-
-      // Process recent sessions
-      const sessions = participation
-        ?.filter(p => p.sessions)
-        .map(p => ({
-          id: (p.sessions as any).id,
-          title: (p.sessions as any).title,
-          date: (p.sessions as any).date,
-          time: `${(p.sessions as any).start_time} - ${(p.sessions as any).end_time}`,
-          engagement: (p.sessions as any).engagement_score || 0,
-          attendees: (p.sessions as any).attendees || 0,
-          status: (p.sessions as any).status
-        })) || [];
-
-      setRecentSessions(sessions);
+      if (participationError) throw participationError;
 
       // Fetch user achievements
       const { data: userAchievements, error: achievementsError } = await supabase
         .from('user_achievements')
         .select(`
+          earned_at,
           achievements (
+            id,
             name,
             description,
-            icon
+            icon,
+            criteria
           )
         `)
+        .eq('user_id', user.id)
+        .order('earned_at', { ascending: false });
+
+      if (achievementsError) throw achievementsError;
+
+      // Fetch all achievements to show progress
+      const { data: allAchievements, error: allAchievementsError } = await supabase
+        .from('achievements')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (allAchievementsError) throw allAchievementsError;
+
+      // Calculate user statistics
+      const stats = {
+        sessions_attended: participation?.length || 0,
+        total_time_spent: participation?.reduce((sum, p) => sum + (p.time_spent || 0), 0) || 0,
+        questions_asked: 0,
+        engagement_score: 0,
+        ai_insights: 0
+      };
+
+      // Fetch questions count
+      const { data: questions, error: questionsError } = await supabase
+        .from('session_questions')
+        .select('id')
         .eq('user_id', user.id);
 
-      if (achievementsError) {
-        console.error('Error fetching achievements:', achievementsError);
+      if (!questionsError) {
+        stats.questions_asked = questions?.length || 0;
       }
 
-      // Process achievements
-      const allAchievements = [
-        { icon: MessageSquare, title: 'Question Master', description: 'Asked 25+ questions', earned: false },
-        { icon: TrendingUp, title: 'Engagement Leader', description: 'Top 10% engagement', earned: false },
-        { icon: Users, title: 'Community Builder', description: '50+ connections made', earned: false },
-        { icon: Star, title: 'Session Champion', description: 'Attend 100 sessions', earned: false }
-      ];
+      // Fetch user profile for engagement score
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('engagement_score')
+        .eq('id', user.id)
+        .single();
 
-      // Mark earned achievements
-      const earnedAchievements = userAchievements?.map(ua => (ua.achievements as any).name) || [];
-      const processedAchievements = allAchievements.map(achievement => ({
-        ...achievement,
-        earned: earnedAchievements.includes(achievement.title)
-      }));
+      if (!profileError && profile) {
+        stats.engagement_score = profile.engagement_score || 0;
+      }
+
+      // Process achievements with progress
+      const processedAchievements = allAchievements?.map((achievement: any) => {
+        const earned = userAchievements?.some((ua: any) => ua.achievements.id === achievement.id);
+        let progress = 0;
+        let target = 0;
+
+        if (achievement.criteria?.type && achievement.criteria?.value) {
+          target = achievement.criteria.value;
+          
+          switch (achievement.criteria.type) {
+            case 'questions_asked':
+              progress = Math.min(stats.questions_asked, target);
+              break;
+            case 'sessions_attended':
+              progress = Math.min(stats.sessions_attended, target);
+              break;
+            case 'total_hours':
+              progress = Math.min(stats.total_time_spent / 60, target);
+              break;
+            case 'engagement_score':
+              progress = Math.min(stats.engagement_score, target);
+              break;
+            case 'ai_insights':
+              progress = Math.min(stats.ai_insights, target);
+              break;
+          }
+        }
+
+        return {
+          id: achievement.id,
+          name: achievement.name,
+          description: achievement.description,
+          date: earned ? userAchievements?.find((ua: any) => ua.achievements.id === achievement.id)?.earned_at : null,
+          icon: achievement.icon,
+          earned: !!earned,
+          progress: Math.round((progress / target) * 100),
+          target
+        };
+      }) || [];
 
       setAchievements(processedAchievements);
 
-      // Generate mock engagement data (in real app, this would come from analytics table)
-      const mockEngagementData = [
-        { month: 'Sep', score: 65 },
-        { month: 'Oct', score: 72 },
-        { month: 'Nov', score: 78 },
-        { month: 'Dec', score: 85 },
-        { month: 'Jan', score: 87 }
+      // Set quick stats
+      const statsArray: QuickStat[] = [
+        {
+          icon: Calendar,
+          label: 'Sessions Attended',
+          value: stats.sessions_attended.toString(),
+          change: '+2 this week',
+          trend: 'up'
+        },
+        {
+          icon: Clock,
+          label: 'Total Hours',
+          value: `${(stats.total_time_spent / 60).toFixed(1)}h`,
+          change: '+1.5h this week',
+          trend: 'up'
+        },
+        {
+          icon: MessageSquare,
+          label: 'Questions Asked',
+          value: stats.questions_asked.toString(),
+          change: '+3 this week',
+          trend: 'up'
+        },
+        {
+          icon: Award,
+          label: 'Achievements',
+          value: processedAchievements.filter(a => a.earned).length.toString(),
+          change: `+${processedAchievements.filter(a => a.earned).length} earned`,
+          trend: 'up'
+        }
       ];
-      setEngagementData(mockEngagementData);
 
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data');
+      setQuickStats(statsArray);
+      setUpcomingSessions(sessions || []);
+      setRecentActivity(participation || []);
+
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [user]);
+
+  const getIconComponent = (iconName: string) => {
+    const iconMap: { [key: string]: any } = {
+      'Calendar': Calendar,
+      'MessageSquare': MessageSquare,
+      'TrendingUp': TrendingUp,
+      'Award': Award,
+      'Star': Star,
+      'Clock': Clock,
+      'Brain': Brain,
+      'Users': Users,
+      'Trophy': Trophy,
+      'Target': Target
+    };
+    return iconMap[iconName] || Award;
+  };
+
+  const joinSession = async (sessionId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('session_participants')
+        .insert({
+          session_id: sessionId,
+          user_id: user.id,
+          joined_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error joining session:', error);
+        alert('Failed to join session');
+        return;
+      }
+
+      // Refresh dashboard data
+      fetchDashboardData();
+      alert('Successfully joined session!');
+    } catch (error) {
+      console.error('Error joining session:', error);
+      alert('Failed to join session');
     }
   };
 
@@ -158,19 +285,13 @@ const Dashboard: React.FC = () => {
       
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-8 text-white mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.name}!</h1>
-              <p className="text-indigo-100">
-                Ready to continue your learning journey? Here's what's happening today.
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">{user?.engagementScore || 0}%</div>
-              <div className="text-indigo-100 text-sm">Engagement Score</div>
-            </div>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back, {user?.name || 'User'}!
+          </h1>
+          <p className="text-gray-600">
+            Here's what's happening with your learning journey today.
+          </p>
         </div>
 
         {/* Error Message */}
@@ -181,198 +302,209 @@ const Dashboard: React.FC = () => {
         )}
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-indigo-100">
-                <Calendar className="w-6 h-6 text-indigo-600" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {quickStats.map((stat, index) => (
+            <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center">
+                <div className="p-3 rounded-lg bg-indigo-100">
+                  <stat.icon className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">{stat.label}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Sessions Attended</p>
-                <p className="text-2xl font-bold text-gray-900">{user?.totalEvents || 0}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-green-100">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg Engagement</p>
-                <p className="text-2xl font-bold text-gray-900">{user?.engagementScore || 0}%</p>
+              <div className="mt-4 flex items-center">
+                <span className={`text-sm font-medium ${
+                  stat.trend === 'up' ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {stat.change}
+                </span>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-purple-100">
-                <Award className="w-6 h-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Badges Earned</p>
-                <p className="text-2xl font-bold text-gray-900">{user?.badges?.length || 0}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center">
-              <div className="p-3 rounded-lg bg-blue-100">
-                <Clock className="w-6 h-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Hours Learned</p>
-                <p className="text-2xl font-bold text-gray-900">24.5h</p>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recent Sessions */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Sessions</h2>
-              <a href="/sessions" className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                View all
-              </a>
-            </div>
-            
-            {recentSessions.length === 0 ? (
-              <div className="text-center py-8">
-                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No recent sessions</h3>
-                <p className="text-gray-600 mb-4">Start by joining your first session</p>
-                <a
-                  href="/sessions"
-                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Browse Sessions
-                </a>
+          {/* Left Column - Upcoming Sessions & Recent Activity */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Upcoming Sessions */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Upcoming Sessions</h2>
+                <button className="text-indigo-600 hover:text-indigo-700 text-sm font-medium">
+                  View all
+                </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {recentSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{session.title}</h3>
-                      <div className="flex items-center mt-1 text-sm text-gray-500 space-x-4">
-                        <span>{new Date(session.date).toLocaleDateString()}</span>
-                        <span>{session.time}</span>
-                        <span>{session.attendees} attendees</span>
+              
+              {upcomingSessions.length > 0 ? (
+                <div className="space-y-4">
+                  {upcomingSessions.map((session) => (
+                    <div key={session.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                          <Calendar className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-gray-900">{session.title}</h3>
+                          <p className="text-sm text-gray-600">
+                            {new Date(session.date).toLocaleDateString()} at {session.start_time}
+                          </p>
+                          <p className="text-sm text-gray-500">{session.organizer}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => joinSession(session.id)}
+                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+                      >
+                        Join
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No upcoming sessions</p>
+                  <p className="text-sm text-gray-400">Check back later for new sessions</p>
+                </div>
+              )}
+            </div>
+
+            {/* Recent Activity */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Activity</h2>
+              
+              {recentActivity.length > 0 ? (
+                <div className="space-y-4">
+                  {recentActivity.map((activity, index) => (
+                    <div key={index} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          Joined "{activity.sessions?.title || 'Session'}"
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(activity.joined_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-gray-900">
+                          {Math.round((activity.time_spent || 0) / 60)}h {(activity.time_spent || 0) % 60}m
+                        </p>
+                        <p className="text-xs text-gray-500">Time spent</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-indigo-600">{session.engagement}%</div>
-                      <div className="text-xs text-gray-500 capitalize">{session.status}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Achievements */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Achievements</h2>
-            <div className="space-y-4">
-              {achievements.map((achievement, index) => (
-                <div key={index} className={`flex items-center p-4 rounded-lg border ${
-                  achievement.earned 
-                    ? 'bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200' 
-                    : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className={`p-2 rounded-lg mr-4 ${
-                    achievement.earned ? 'bg-indigo-100' : 'bg-gray-100'
-                  }`}>
-                    <achievement.icon className={`w-5 h-5 ${
-                      achievement.earned ? 'text-indigo-600' : 'text-gray-400'
-                    }`} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className={`font-medium ${
-                      achievement.earned ? 'text-gray-900' : 'text-gray-500'
-                    }`}>
-                      {achievement.title}
-                    </h3>
-                    <p className={`text-sm ${
-                      achievement.earned ? 'text-gray-600' : 'text-gray-400'
-                    }`}>
-                      {achievement.description}
-                    </p>
-                  </div>
-                  {achievement.earned && (
-                    <div className="text-indigo-600">
-                      <Award className="w-5 h-5" />
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="text-center py-8">
+                  <Circle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No recent activity</p>
+                  <p className="text-sm text-gray-400">Join your first session to see activity here</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Engagement Chart */}
-        <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Engagement Trend</h2>
-          <div className="h-64 flex items-end justify-center space-x-4">
-            {engagementData.map((data, index) => (
-              <div key={index} className="flex flex-col items-center">
-                <div
-                  className="w-12 bg-indigo-600 rounded-t-lg transition-all duration-300 hover:bg-indigo-700"
-                  style={{ height: `${(data.score / 100) * 200}px` }}
-                  title={`${data.month}: ${data.score}%`}
-                ></div>
-                <span className="text-sm text-gray-600 mt-2">{data.month}</span>
+          {/* Right Column - Achievements */}
+          <div className="space-y-8">
+            {/* Achievements */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Achievements</h2>
+                <span className="text-sm text-gray-600">
+                  {achievements.filter(a => a.earned).length}/{achievements.length}
+                </span>
               </div>
-            ))}
+              
+              <div className="space-y-4">
+                {achievements.slice(0, 6).map((achievement) => {
+                  const IconComponent = getIconComponent(achievement.icon);
+                  return (
+                    <div 
+                      key={achievement.id} 
+                      className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                        achievement.earned 
+                          ? 'border-green-200 bg-green-50' 
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${
+                          achievement.earned 
+                            ? 'bg-green-100 text-green-600' 
+                            : 'bg-gray-100 text-gray-400'
+                        }`}>
+                          <IconComponent className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`font-medium text-sm ${
+                            achievement.earned ? 'text-green-900' : 'text-gray-900'
+                          }`}>
+                            {achievement.name}
+                          </h4>
+                          <p className="text-xs text-gray-600 mt-1">
+                            {achievement.description}
+                          </p>
+                          {!achievement.earned && achievement.progress !== undefined && (
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div 
+                                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
+                                  style={{ width: `${achievement.progress}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {achievements.length > 6 && (
+                <button className="w-full mt-4 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                  View all achievements
+                </button>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
+              
+              <div className="space-y-3">
+                <button className="w-full flex items-center justify-between p-3 text-left bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <Calendar className="w-5 h-5 text-indigo-600" />
+                    <span className="font-medium text-gray-900">Browse Sessions</span>
+                  </div>
+                  <span className="text-sm text-gray-500">→</span>
+                </button>
+                
+                <button className="w-full flex items-center justify-between p-3 text-left bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <MessageSquare className="w-5 h-5 text-green-600" />
+                    <span className="font-medium text-gray-900">Ask Questions</span>
+                  </div>
+                  <span className="text-sm text-gray-500">→</span>
+                </button>
+                
+                <button className="w-full flex items-center justify-between p-3 text-left bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <TrendingUp className="w-5 h-5 text-purple-600" />
+                    <span className="font-medium text-gray-900">View Analytics</span>
+                  </div>
+                  <span className="text-sm text-gray-500">→</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <a
-            href="/sessions"
-            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center mb-4">
-              <div className="p-3 rounded-lg bg-indigo-100">
-                <Calendar className="w-6 h-6 text-indigo-600" />
-              </div>
-              <h3 className="ml-4 text-lg font-semibold text-gray-900">Join Sessions</h3>
-            </div>
-            <p className="text-gray-600">Discover and join engaging learning sessions</p>
-          </a>
-
-          <a
-            href="/analytics"
-            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center mb-4">
-              <div className="p-3 rounded-lg bg-green-100">
-                <BarChart3 className="w-6 h-6 text-green-600" />
-              </div>
-              <h3 className="ml-4 text-lg font-semibold text-gray-900">View Analytics</h3>
-            </div>
-            <p className="text-gray-600">Track your progress and engagement metrics</p>
-          </a>
-
-          <a
-            href="/preferences"
-            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center mb-4">
-              <div className="p-3 rounded-lg bg-purple-100">
-                <Users className="w-6 h-6 text-purple-600" />
-              </div>
-              <h3 className="ml-4 text-lg font-semibold text-gray-900">Manage Profile</h3>
-            </div>
-            <p className="text-gray-600">Update your preferences and settings</p>
-          </a>
         </div>
       </main>
     </div>
