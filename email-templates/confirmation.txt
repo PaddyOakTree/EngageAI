@@ -1,0 +1,23 @@
+Welcome to EngageAI! 🎉
+
+Thank you for joining our community of learners and educators. We're excited to have you on board and can't wait to see how you'll engage with our platform.
+
+Please confirm your email address by clicking the link below:
+
+{{ .ConfirmationURL }}
+
+What you can do with EngageAI:
+✓ Track your learning engagement and progress
+✓ Earn badges and recognition for your achievements
+✓ Connect with other learners in your organization
+✓ Access personalized learning analytics
+✓ Customize your learning preferences and notifications
+
+Security Note: This link will expire in 24 hours for your security. If you didn't create an account with EngageAI, you can safely ignore this email.
+
+This email was sent to {{ .Email }}. If you have any questions, please don't hesitate to reach out to our support team.
+
+Visit our website: {{ .SiteURL }}
+
+Best regards,
+The EngageAI Team 
