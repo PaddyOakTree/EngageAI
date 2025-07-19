@@ -22,7 +22,7 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  signup: (userData: any) => Promise<User>;
+  signup: (userData: any) => Promise<User | null>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }

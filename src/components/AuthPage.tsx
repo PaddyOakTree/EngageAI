@@ -44,13 +44,7 @@ const AuthPage: React.FC = () => {
     });
   };
 
-  const demoCredentials = () => {
-    setFormData({
-      ...formData,
-      email: 'demo@engageai.com',
-      password: 'demo123'
-    });
-  };
+  // Demo credentials removed for production
 
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -175,15 +169,7 @@ const AuthPage: React.FC = () => {
               )}
             </button>
 
-            {isLogin && (
-              <button
-                type="button"
-                onClick={demoCredentials}
-                className="w-full text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
-              >
-                Use demo credentials (demo@engageai.com / demo123)
-              </button>
-            )}
+            {/* Demo credentials removed for production */}
           </form>
 
           <div className="mt-6">

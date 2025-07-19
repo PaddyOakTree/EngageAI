@@ -11,6 +11,7 @@ import SessionView from './components/SessionView';
 import SessionsPage from './components/SessionsPage';
 import AnalyticsPage from './components/AnalyticsPage';
 import PreferencesPage from './components/PreferencesPage';
+import AuthCallback from './components/AuthCallback';
 import { User, AuthContextType } from './types/auth';
 
 // Auth Context
@@ -168,7 +169,7 @@ function App() {
     });
   };
 
-  const signup = (userData: any): Promise<User> => {
+  const signup = (userData: any): Promise<User | null> => {
     return new Promise(async (resolve, reject) => {
       try {
         const { data, error } = await supabase.auth.signUp({
@@ -178,7 +179,8 @@ function App() {
             data: {
               name: userData.name,
               organization: userData.organization
-            }
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`
           }
         });
 
@@ -187,7 +189,8 @@ function App() {
           return;
         }
 
-        if (data.user) {
+        if (data.user && data.session) {
+          // User is confirmed immediately (if email confirmation is disabled)
           const profileData = {
             id: data.user.id,
             name: userData.name,
@@ -235,6 +238,10 @@ function App() {
           
           setUser(newUser);
           resolve(newUser);
+        } else if (data.user && !data.session) {
+          // User needs to confirm email
+          console.log('User needs to confirm email before signing in');
+          resolve(null); // Return null to indicate email confirmation is needed
         }
       } catch (error) {
         reject(error);
@@ -287,6 +294,7 @@ function App() {
           <Routes>
             <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
             <Route path="/auth" element={user ? <Navigate to="/dashboard" /> : <AuthPage />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/auth" />} />
             <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" />} />
             <Route path="/profile" element={user ? <ProfileSettings /> : <Navigate to="/auth" />} />
