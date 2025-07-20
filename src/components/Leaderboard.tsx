@@ -47,8 +47,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       // Build query based on selected metric
       let query = supabase
         .from('profiles')
-        .select('id, name, avatar_url, organization, engagement_score, total_events, badges')
-        .eq('privacy_leaderboard_visible', true); // Only include users who opted in
+        .select('id, name, avatar_url, organization, engagement_score, total_events, badges');
+        // Note: privacy_leaderboard_visible column doesn't exist in current schema
 
       // Filter by organization if specified
       if (organization) {
@@ -88,7 +88,6 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           const { data: allUsers, error: rankError } = await supabase
             .from('profiles')
             .select('id, name, avatar_url, organization, engagement_score, total_events, badges')
-            .eq('privacy_leaderboard_visible', true)
             .order(selectedMetric === 'engagement' ? 'engagement_score' : 'total_events', { ascending: false });
 
           if (!rankError && allUsers) {

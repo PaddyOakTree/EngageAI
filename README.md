@@ -1,19 +1,18 @@
-# 🧠 EngageAI - Event Engagement Tracking Platform
+# 🧠 EngageAI
+
+<div align="center">
 
 ![EngageAI Banner](https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?auto=compress&cs=tinysrgb&w=1200&h=300&fit=crop)
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/8c9b7c-zesty-sopapillas/deploy-status)](https://zesty-sopapillas-8c9b7c.netlify.app)
-[![React](https://img.shields.io/badge/React-18.3.1-blue.svg)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-blue.svg)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Database-green.svg)](https://supabase.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4.1-blue.svg)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-5.4.2-purple.svg)](https://vitejs.dev/)
+**Transform event attendance into meaningful engagement**
 
-> **Transform event attendance into meaningful engagement with AI-powered insights, real-time tracking, and beautiful analytics.**
+[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?style=for-the-badge&logo=react)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase)](https://supabase.com/)
+[![Tailwind](https://img.shields.io/badge/Tailwind-06B6D4?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev/)
 
-## 🌟 Live Demo
-
-🚀 **[View Live Application](https://zesty-sopapillas-8c9b7c.netlify.app)**
+</div>
 
 ## 📋 Table of Contents
 
@@ -281,60 +280,52 @@ erDiagram
 
 </details>
 
-## 🚀 Getting Started
+## **Quick Start**
 
-### **Prerequisites**
+<table>
+<tr>
+<td width="50%">
 
-- Node.js 18+ 
-- npm or yarn
-- Supabase account
-- AI provider API keys (optional)
+### **Installation**
+```bash
+# Clone repository
+git clone <repository-url>
+cd engageai
 
-### **Installation Steps**
+# Install dependencies
+npm install
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/engageai.git
-   cd engageai
-   ```
+# Setup environment
+cp .env.example .env
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+# Start development
+npm run dev
+```
 
-3. **Environment setup**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Configure your `.env` file:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+</td>
+<td width="50%">
 
-4. **Database setup**
-   ```bash
-   # Run Supabase migrations
-   npx supabase db push
-   ```
+### **Requirements**
 
-5. **Start development server**
-   ```bash
-   npm run dev
-   ```
+| Tool | Version | Purpose |
+|------|---------|----------|
+| Node.js | 18+ | Runtime |
+| npm | Latest | Package manager |
+| Supabase | - | Database & Auth |
 
-### **Quick Setup Checklist**
+</td>
+</tr>
+</table>
 
-- [ ] Supabase project created
-- [ ] Environment variables configured
-- [ ] Database migrations applied
-- [ ] Development server running
-- [ ] Authentication working
-- [ ] Sample data loaded (optional)
+### **Environment Variables**
 
-## 🔧 Configuration
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `VITE_SUPABASE_URL` | Supabase project URL | |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anonymous key | |
+| `VITE_GOOGLE_AI_API_KEY` | Google AI API key | Optional |
+| `VITE_GROQ_API_KEY` | Groq API key | Optional |
+| `VITE_COHERE_API_KEY` | Cohere API key | Optional |
 
 ### **Supabase Configuration**
 
@@ -650,207 +641,91 @@ graph TB
 |----------|--------|-------------|----------------|
 | `/auth/signup` | POST | User registration | None |
 | `/auth/signin` | POST | User login | None |
-| `/auth/signout` | POST | User logout | Required |
-| `/auth/refresh` | POST | Token refresh | Required |
-
-### **Session Management**
-
-| Endpoint | Method | Description | Permissions |
-|----------|--------|-------------|-------------|
-| `/sessions` | GET | List sessions | Authenticated |
-| `/sessions` | POST | Create session | Organizer+ |
-| `/sessions/:id` | GET | Get session details | Authenticated |
-| `/sessions/:id` | PUT | Update session | Owner/Admin |
-| `/sessions/:id/join` | POST | Join session | Authenticated |
-
-### **Analytics Endpoints**
-
-| Endpoint | Method | Description | Permissions |
-|----------|--------|-------------|-------------|
-| `/analytics/user/:id` | GET | User analytics | Self/Admin |
-| `/analytics/session/:id` | GET | Session analytics | Organizer+ |
-| `/analytics/system` | GET | System analytics | Admin |
-
-### **Real-time Subscriptions**
-
-```typescript
-// Example: Subscribe to session updates
-const subscription = supabase
-  .channel('session-updates')
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'sessions'
-  }, (payload) => {
-    console.log('Session updated:', payload);
-  })
-  .subscribe();
 ```
+
+### **Rate Limits**
+
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| Auth | 5 req | 1 min |
+| API | 100 req | 1 min |
+| Uploads | 10 req | 1 min |
 
 ## 🧪 Testing
 
-### **Testing Strategy**
-
-```mermaid
-pyramid
-    title Testing Pyramid
-    "E2E Tests" : 10
-    "Integration Tests" : 30
-    "Unit Tests" : 60
-```
-
-### **Test Coverage**
-
-| Component | Unit Tests | Integration Tests | E2E Tests |
-|-----------|------------|-------------------|-----------|
-| **Authentication** | ✅ | ✅ | ✅ |
-| **Session Management** | ✅ | ✅ | ✅ |
-| **Analytics** | ✅ | ✅ | ❌ |
-| **AI Integration** | ✅ | ❌ | ❌ |
-| **User Interface** | ✅ | ✅ | ✅ |
-
-### **Running Tests**
-
 ```bash
-# Unit tests
-npm run test
-
-# Integration tests
-npm run test:integration
-
-# E2E tests
-npm run test:e2e
+# Run tests
+npm test
 
 # Coverage report
 npm run test:coverage
+
+# E2E tests
+npm run test:e2e
 ```
+
+| Component | Coverage Target | Status |
+|-----------|----------------|--------|
+| Core Logic | 90%+ | 🟢 |
+| API | 85%+ | 🟡 |
+| UI | 75%+ | 🟡 |
 
 ## 🚀 Deployment
 
-### **Deployment Architecture**
+<table>
+<tr>
+<td width="33%">
 
-```mermaid
-graph TB
-    subgraph "Development"
-        A[Local Development]
-        B[Feature Branches]
-    end
-    
-    subgraph "Staging"
-        C[Preview Deployments]
-        D[Integration Testing]
-    end
-    
-    subgraph "Production"
-        E[Netlify Hosting]
-        F[Supabase Backend]
-        G[CDN Distribution]
-    end
-    
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    E --> G
+### **Netlify**
+```bash
+npm run build
+netlify deploy --prod
 ```
+✅ Auto deployments  
+✅ Branch previews
 
-### **Deployment Options**
+</td>
+<td width="33%">
 
-| Platform | Type | Features | Cost |
-|----------|------|----------|------|
-| **Netlify** | Static Hosting | CDN, Preview deploys, Form handling | Free tier available |
-| **Vercel** | Static Hosting | Edge functions, Analytics | Free tier available |
-| **AWS Amplify** | Full-stack | CI/CD, Backend integration | Pay-as-you-go |
-| **Self-hosted** | Custom | Full control, Custom domains | Infrastructure costs |
-
-### **Environment Configuration**
-
-#### **Production Environment**
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-production-anon-key
-VITE_APP_ENV=production
+### **Vercel**
+```bash
+npm run build
+vercel --prod
 ```
+✅ Zero-config  
+✅ Global CDN
 
-#### **Staging Environment**
-```env
-VITE_SUPABASE_URL=https://your-staging-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-staging-anon-key
-VITE_APP_ENV=staging
+</td>
+<td width="33%">
+
+### **Docker**
+```bash
+docker build -t engageai .
+docker run -p 3000:3000 engageai
 ```
+✅ Self-hosted  
+✅ Scalable
 
-### **CI/CD Pipeline**
-
-```yaml
-# Example GitHub Actions workflow
-name: Deploy to Production
-on:
-  push:
-    branches: [main]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - run: npm ci
-      - run: npm run build
-      - run: npm run test
-      - uses: netlify/actions/cli@master
-        with:
-          args: deploy --prod --dir=dist
-```
+</td>
+</tr>
+</table>
 
 ## 🤝 Contributing
 
-### **Development Workflow**
+1. **Fork** the repository
+2. **Create** feature branch
+3. **Add** tests
+4. **Submit** pull request
 
-```mermaid
-gitgraph
-    commit id: "Initial"
-    branch feature/new-feature
-    checkout feature/new-feature
-    commit id: "Feature work"
-    commit id: "Tests added"
-    checkout main
-    merge feature/new-feature
-    commit id: "Release"
-```
-
-### **Contribution Guidelines**
-
-1. **Fork the repository**
-2. **Create a feature branch**
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. **Make your changes**
-4. **Add tests for new functionality**
-5. **Ensure all tests pass**
-6. **Submit a pull request**
-
-### **Code Standards**
-
-- **TypeScript**: Strict mode enabled
-- **ESLint**: Airbnb configuration
-- **Prettier**: Automatic code formatting
-- **Husky**: Pre-commit hooks
-- **Conventional Commits**: Commit message format
-
-### **Pull Request Process**
-
-| Step | Description | Automated Checks |
-|------|-------------|------------------|
-| 1 | Create PR from feature branch | Branch protection rules |
-| 2 | Code review by maintainers | Required reviewers |
-| 3 | Automated testing | CI/CD pipeline |
-| 4 | Manual testing if needed | QA checklist |
-| 5 | Merge to main branch | Squash and merge |
+| Standard | Tool |
+|----------|------|
+| Code Style | ESLint + Prettier |
+| Type Safety | TypeScript |
+| Testing | Jest |
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+**MIT License** - Open source and free to use.
 
 ### **License Summary**
 

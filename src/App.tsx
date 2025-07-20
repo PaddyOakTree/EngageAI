@@ -26,14 +26,33 @@ function App() {
   useEffect(() => {
     // Check for existing Supabase session
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserProfile(session.user.id, session.user.email!);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Auth session error:', error);
+          setLoading(false);
+          return;
+        }
+        
+        if (session?.user) {
+          await loadUserProfile(session.user.id, session.user.email!);
+        }
+      } catch (error) {
+        console.error('Failed to get session:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    getSession();
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.warn('Auth check timeout - setting loading to false');
+      setLoading(false);
+    }, 5000); // 5 second timeout
+
+    getSession().then(() => {
+      clearTimeout(timeoutId);
+    });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {

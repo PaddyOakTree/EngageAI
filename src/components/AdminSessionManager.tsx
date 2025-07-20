@@ -4,21 +4,10 @@ import { supabase } from '../lib/supabase';
 import { 
   Edit, 
   Trash2, 
-  Save, 
-  X, 
-  Users, 
   Crown, 
   Shield, 
   User, 
-  Calendar,
-  Clock,
-  MapPin,
-  Link,
-  Tag,
-  AlertTriangle,
-  CheckCircle,
-  Eye,
-  EyeOff
+  AlertTriangle
 } from 'lucide-react';
 
 interface Session {
@@ -73,17 +62,29 @@ const AdminSessionManager: React.FC = () => {
   
   // Edit states
   const [editingSession, setEditingSession] = useState<Session | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<{
+    title: string;
+    description: string;
+    meeting_url: string;
+    max_attendees: number;
+    status: 'upcoming' | 'live' | 'completed' | 'cancelled';
+    date: string;
+    start_time: string;
+    end_time: string;
+    location: string;
+    tags: string[];
+    organizer: string;
+  }>({
     title: '',
     description: '',
     meeting_url: '',
     max_attendees: 0,
-    status: 'upcoming' as const,
+    status: 'upcoming',
     date: '',
     start_time: '',
     end_time: '',
     location: '',
-    tags: [] as string[],
+    tags: [],
     organizer: ''
   });
   
