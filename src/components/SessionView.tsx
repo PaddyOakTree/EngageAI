@@ -706,6 +706,35 @@ const SessionView: React.FC = () => {
     }
   };
 
+  // Helper function to get meeting platform info
+  const getMeetingPlatformInfo = (meetingUrl: string) => {
+    if (meetingUrl.includes('meet.google.com')) {
+      return {
+        platform: 'Google Meet',
+        icon: '🎥',
+        instructions: 'Click "Join Meeting" to open Google Meet in a new tab'
+      };
+    } else if (meetingUrl.includes('zoom.us')) {
+      return {
+        platform: 'Zoom',
+        icon: '📹',
+        instructions: 'Click "Join Meeting" to open Zoom in a new tab'
+      };
+    } else if (meetingUrl.includes('teams.microsoft.com')) {
+      return {
+        platform: 'Microsoft Teams',
+        icon: '💼',
+        instructions: 'Click "Join Meeting" to open Teams in a new tab'
+      };
+    } else {
+      return {
+        platform: 'External Meeting',
+        icon: '🔗',
+        instructions: 'Click "Join Meeting" to open the meeting link'
+      };
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -791,12 +820,44 @@ const SessionView: React.FC = () => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
               <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center mb-4">
-                {session.meeting_url ? (
-                  <iframe
-                    src={session.meeting_url}
-                    className="w-full h-full rounded-lg"
-                    allow="camera; microphone; fullscreen; speaker; display-capture"
-                  />
+                {session.meeting_url && session.status === 'live' ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white">
+                    {(() => {
+                      const platformInfo = getMeetingPlatformInfo(session.meeting_url);
+                      return (
+                        <>
+                          <div className="text-4xl mb-4">{platformInfo.icon}</div>
+                          <p className="text-lg font-medium mb-2">{platformInfo.platform}</p>
+                          <p className="text-sm opacity-75 mb-4">{platformInfo.instructions}</p>
+                          <a
+                            href={session.meeting_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
+                          >
+                            Join Meeting
+                          </a>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : session.meeting_url && session.status === 'upcoming' ? (
+                  <div className="text-center text-white">
+                    {(() => {
+                      const platformInfo = getMeetingPlatformInfo(session.meeting_url);
+                      return (
+                        <>
+                          <div className="text-4xl mb-4">{platformInfo.icon}</div>
+                          <p className="text-lg font-medium">{platformInfo.platform}</p>
+                          <p className="text-sm opacity-75 mb-4">Meeting link will be available when session starts</p>
+                          <div className="bg-gray-800 rounded-lg p-4 max-w-md mx-auto">
+                            <p className="text-xs text-gray-300 mb-2">Meeting Link:</p>
+                            <p className="text-sm font-mono text-gray-400 break-all">{session.meeting_url}</p>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
                 ) : (
                   <div className="text-center text-white">
                     <Video className="w-16 h-16 mx-auto mb-4 opacity-50" />
