@@ -24,7 +24,8 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
     meeting_url: '',
     max_attendees: '',
     tags: '',
-    thumbnail_url: ''
+    thumbnail_url: '',
+    ai_models: [] as string[]
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +52,7 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
           max_attendees: formData.max_attendees ? parseInt(formData.max_attendees) : null,
           tags: tagsArray,
           thumbnail_url: formData.thumbnail_url || null,
+          ai_models: formData.ai_models,
           status: 'upcoming',
           attendees: 0,
           engagement_score: 0
@@ -76,7 +78,8 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
         meeting_url: '',
         max_attendees: '',
         tags: '',
-        thumbnail_url: ''
+        thumbnail_url: '',
+        ai_models: []
       });
     } catch (error) {
       console.error('Error creating session:', error);
@@ -91,6 +94,15 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
       ...formData,
       [e.target.name]: e.target.value
     });
+  };
+
+  const handleAiModelToggle = (model: string) => {
+    setFormData(prev => ({
+      ...prev,
+      ai_models: prev.ai_models.includes(model)
+        ? prev.ai_models.filter(m => m !== model)
+        : [...prev.ai_models, model]
+    }));
   };
 
   if (!isOpen) return null;
@@ -325,6 +337,96 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="https://example.com/image.jpg"
               />
+            </div>
+
+            {/* AI Models */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                AI Models for Session Analysis
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="gemini"
+                    checked={formData.ai_models.includes('Gemini')}
+                    onChange={() => handleAiModelToggle('Gemini')}
+                    className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="gemini" className="text-sm text-gray-700">Google Gemini</label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="groq"
+                    checked={formData.ai_models.includes('Groq')}
+                    onChange={() => handleAiModelToggle('Groq')}
+                    className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="groq" className="text-sm text-gray-700">Groq AI</label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="local"
+                    checked={formData.ai_models.includes('Local')}
+                    onChange={() => handleAiModelToggle('Local')}
+                    className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="local" className="text-sm text-gray-700">Local Analysis</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Models */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">AI Models</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="gpt-4"
+                  name="gpt-4"
+                  checked={formData.ai_models.includes('gpt-4')}
+                  onChange={() => handleAiModelToggle('gpt-4')}
+                  className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="gpt-4" className="text-sm text-gray-700">GPT-4</label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="gpt-3.5-turbo"
+                  name="gpt-3.5-turbo"
+                  checked={formData.ai_models.includes('gpt-3.5-turbo')}
+                  onChange={() => handleAiModelToggle('gpt-3.5-turbo')}
+                  className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="gpt-3.5-turbo" className="text-sm text-gray-700">GPT-3.5 Turbo</label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="gpt-3.5-turbo-16k"
+                  name="gpt-3.5-turbo-16k"
+                  checked={formData.ai_models.includes('gpt-3.5-turbo-16k')}
+                  onChange={() => handleAiModelToggle('gpt-3.5-turbo-16k')}
+                  className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="gpt-3.5-turbo-16k" className="text-sm text-gray-700">GPT-3.5 Turbo 16k</label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="gpt-3.5-turbo-1106"
+                  name="gpt-3.5-turbo-1106"
+                  checked={formData.ai_models.includes('gpt-3.5-turbo-1106')}
+                  onChange={() => handleAiModelToggle('gpt-3.5-turbo-1106')}
+                  className="mr-2 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="gpt-3.5-turbo-1106" className="text-sm text-gray-700">GPT-3.5 Turbo 1106</label>
+              </div>
             </div>
           </div>
 

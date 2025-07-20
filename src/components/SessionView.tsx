@@ -10,6 +10,7 @@ interface Session {
   id: string;
   title: string;
   organizer: string;
+  organizer_id: string;
   start_time: string;
   end_time: string;
   attendees: number;
@@ -53,11 +54,79 @@ const SessionView: React.FC = () => {
   const [error, setError] = useState('');
   const [isParticipating, setIsParticipating] = useState(false);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [isSessionLive, setIsSessionLive] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [sessionEndTime, setSessionEndTime] = useState<Date | null>(null);
+  const [newQuestion, setNewQuestion] = useState('');
+  const [showQuestionInput, setShowQuestionInput] = useState(false);
+  const [sessionAnalytics, setSessionAnalytics] = useState({
+    totalQuestions: 0,
+    avgEngagement: 0,
+    participationRate: 0,
+    sessionDuration: 0
+  });
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
       fetchSessionData();
     }
+  }, [id]);
+
+  // Real-time subscription to session updates
+  useEffect(() => {
+    if (!id) return;
+
+    const subscription = supabase
+      .channel(`session-${id}`)
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'sessions',
+          filter: `id=eq.${id}`
+        }, 
+        (payload) => {
+          console.log('Session update:', payload);
+          if (payload.eventType === 'UPDATE') {
+            setSession(payload.new as Session);
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'session_questions',
+          filter: `session_id=eq.${id}`
+        }, 
+        (payload) => {
+          console.log('Question update:', payload);
+          if (payload.eventType === 'INSERT') {
+            fetchSessionData(); // Refresh questions
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'session_participants',
+          filter: `session_id=eq.${id}`
+        }, 
+        (payload) => {
+          console.log('Participant update:', payload);
+          if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+            fetchSessionData(); // Refresh participants
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [id]);
 
   const fetchSessionData = async () => {
@@ -159,6 +228,28 @@ const SessionView: React.FC = () => {
 
       // Generate AI insights with real data
       if (user) {
+        const processedQuestions = questionsData
+          ?.filter(q => q.profiles)
+          .map(q => ({
+            id: q.created_at,
+            user: (q.profiles as any).name,
+            question: q.question,
+            time: new Date(q.created_at).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            sentiment: q.sentiment || 'neutral'
+          })) || [];
+
+        const processedParticipants = participantsData
+          ?.filter(p => p.profiles)
+          .map(p => ({
+            id: (p.profiles as any).name,
+            name: (p.profiles as any).name,
+            avatar: (p.profiles as any).avatar_url || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&fit=crop',
+            engagement: p.engagement_score || 0
+          })) || [];
+
         generateAiInsights(sessionData, processedQuestions, processedParticipants);
       }
 
@@ -250,7 +341,194 @@ const SessionView: React.FC = () => {
     }
   };
 
+  const startSession = async () => {
+    if (!session || !user) return;
 
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ 
+          status: 'live',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.id);
+
+      if (error) {
+        console.error('Error starting session:', error);
+        alert('Failed to start session');
+        return;
+      }
+
+      setIsSessionLive(true);
+      setSessionStartTime(new Date());
+      alert('Session started successfully!');
+    } catch (error) {
+      console.error('Error starting session:', error);
+      alert('Failed to start session');
+    }
+  };
+
+  const endSession = async () => {
+    if (!session || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', session.id);
+
+      if (error) {
+        console.error('Error ending session:', error);
+        alert('Failed to end session');
+        return;
+      }
+
+      setIsSessionLive(false);
+      setSessionEndTime(new Date());
+      alert('Session ended successfully!');
+    } catch (error) {
+      console.error('Error ending session:', error);
+      alert('Failed to end session');
+    }
+  };
+
+  const askQuestion = async (questionText: string) => {
+    if (!session || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('session_questions')
+        .insert({
+          session_id: session.id,
+          user_id: user.id,
+          question: questionText,
+          sentiment: 'neutral',
+          answered: false
+        });
+
+      if (error) {
+        console.error('Error asking question:', error);
+        alert('Failed to ask question');
+        return;
+      }
+
+      // Refresh questions list
+      fetchSessionData();
+      setNewQuestion('');
+      setShowQuestionInput(false);
+      alert('Question submitted successfully!');
+    } catch (error) {
+      console.error('Error asking question:', error);
+      alert('Failed to ask question');
+    }
+  };
+
+  const handleQuestionSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newQuestion.trim()) {
+      askQuestion(newQuestion.trim());
+    }
+  };
+
+  const generateSessionReport = async () => {
+    if (!session) return;
+
+    try {
+      const reportData = {
+        sessionId: session.id,
+        title: session.title,
+        organizer: session.organizer,
+        date: session.start_time, // Assuming start_time is the date
+        duration: sessionAnalytics.sessionDuration,
+        totalParticipants: participants.length,
+        totalQuestions: sessionAnalytics.totalQuestions,
+        avgEngagement: sessionAnalytics.avgEngagement,
+        participationRate: sessionAnalytics.participationRate,
+        questions: questions,
+        insights: aiInsights
+      };
+
+      // Generate downloadable report
+      const reportBlob = new Blob([JSON.stringify(reportData, null, 2)], {
+        type: 'application/json'
+      });
+      
+      const url = URL.createObjectURL(reportBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `session-report-${session.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      alert('Session report downloaded successfully!');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report');
+    }
+  };
+
+  const updateSessionAnalytics = () => {
+    if (!session) return;
+
+    const totalQuestions = questions.length;
+    const avgEngagement = participants.length > 0 
+      ? participants.reduce((sum, p) => sum + p.engagement, 0) / participants.length 
+      : 0;
+    const participationRate = session.attendees 
+      ? (participants.length / session.attendees) * 100 
+      : 0;
+    
+    // Calculate session duration (mock calculation)
+    const sessionDuration = 90; // minutes
+
+    setSessionAnalytics({
+      totalQuestions,
+      avgEngagement,
+      participationRate,
+      sessionDuration
+    });
+  };
+
+  useEffect(() => {
+    updateSessionAnalytics();
+  }, [questions, participants, session]);
+
+  const startRecording = async () => {
+    if (!session) return;
+
+    try {
+      setIsRecording(true);
+      // In a real implementation, this would integrate with a recording service
+      // For now, we'll simulate recording
+      setTimeout(() => {
+        setRecordingUrl('https://example.com/recording.mp4');
+        setIsRecording(false);
+      }, 3000);
+
+      alert('Recording started!');
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Failed to start recording');
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!session) return;
+
+    try {
+      setIsRecording(false);
+      alert('Recording stopped!');
+    } catch (error) {
+      console.error('Error stopping recording:', error);
+      alert('Failed to stop recording');
+    }
+  };
 
   if (loading) {
     return (
@@ -361,6 +639,30 @@ const SessionView: React.FC = () => {
                 >
                   {isVideoOn ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5" />}
                 </button>
+                
+                {/* Recording Controls */}
+                {user && session.organizer_id === user.id && session.status === 'live' && (
+                  <>
+                    {!isRecording ? (
+                      <button
+                        onClick={startRecording}
+                        className="p-3 rounded-full bg-red-500 text-white hover:bg-red-600"
+                        title="Start Recording"
+                      >
+                        <div className="w-5 h-5 bg-white rounded-full"></div>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={stopRecording}
+                        className="p-3 rounded-full bg-gray-500 text-white hover:bg-gray-600"
+                        title="Stop Recording"
+                      >
+                        <div className="w-5 h-5 bg-white rounded-full"></div>
+                      </button>
+                    )}
+                  </>
+                )}
+                
                 <button className="p-3 rounded-full bg-gray-200 text-gray-700">
                   <Settings className="w-5 h-5" />
                 </button>
@@ -369,17 +671,40 @@ const SessionView: React.FC = () => {
                 </button>
               </div>
 
-              {/* Join Session Button */}
-              {!isParticipating && session.status === 'upcoming' && (
-                <div className="mt-6 text-center">
+              {/* Session Management Buttons */}
+              <div className="mt-6 text-center space-x-4">
+                {!isParticipating && session.status === 'upcoming' && (
                   <button
                     onClick={joinSession}
                     className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     Join Session
                   </button>
-                </div>
-              )}
+                )}
+                
+                {/* Organizer Controls */}
+                {user && session.organizer_id === user.id && (
+                  <>
+                    {session.status === 'upcoming' && (
+                      <button
+                        onClick={startSession}
+                        className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        Start Session
+                      </button>
+                    )}
+                    
+                    {session.status === 'live' && (
+                      <button
+                        onClick={endSession}
+                        className="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        End Session
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* AI Insights */}
@@ -458,6 +783,29 @@ const SessionView: React.FC = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Questions</h3>
                 <MessageSquare className="w-5 h-5 text-gray-400" />
               </div>
+              
+              {/* Question Input */}
+              {isParticipating && session.status === 'live' && (
+                <div className="mb-4">
+                  <form onSubmit={handleQuestionSubmit} className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newQuestion}
+                      onChange={(e) => setNewQuestion(e.target.value)}
+                      placeholder="Ask a question..."
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newQuestion.trim()}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Ask
+                    </button>
+                  </form>
+                </div>
+              )}
+              
               <div className="space-y-3">
                 {questions.map((question) => (
                   <div key={question.id} className="p-3 bg-gray-50 rounded-lg">
@@ -480,16 +828,40 @@ const SessionView: React.FC = () => {
               </div>
             </div>
 
-            {/* Engagement Score */}
+            {/* Session Analytics */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Your Engagement</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Session Analytics</h3>
                 <TrendingUp className="w-5 h-5 text-gray-400" />
               </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-indigo-600 mb-2">{engagementScore}%</div>
-                <p className="text-sm text-gray-600">Current engagement score</p>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Total Questions:</span>
+                  <span className="text-sm font-medium">{sessionAnalytics.totalQuestions}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Avg Engagement:</span>
+                  <span className="text-sm font-medium">{Math.round(sessionAnalytics.avgEngagement)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Participation Rate:</span>
+                  <span className="text-sm font-medium">{Math.round(sessionAnalytics.participationRate)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Duration:</span>
+                  <span className="text-sm font-medium">{sessionAnalytics.sessionDuration} min</span>
+                </div>
               </div>
+              
+              {/* Report Generation */}
+              {session.status === 'completed' && (
+                <button
+                  onClick={generateSessionReport}
+                  className="w-full mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                >
+                  Generate Report
+                </button>
+              )}
             </div>
           </div>
         </div>
