@@ -4,7 +4,23 @@ import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import { aiService, AIInsight } from '../lib/aiService';
 import Header from './Header';
-import { Video, Users, MessageSquare, TrendingUp, Brain, Mic, MicOff, Camera, CameraOff, Settings, Share2, ArrowLeft } from 'lucide-react';
+import { 
+  Video, 
+  Users, 
+  MessageSquare, 
+  TrendingUp, 
+  Brain, 
+  Mic, 
+  MicOff, 
+  Camera, 
+  CameraOff, 
+  Settings, 
+  Share2, 
+  ArrowLeft,
+  Shield,
+  Crown,
+  Activity
+} from 'lucide-react';
 
 interface Session {
   id: string;
@@ -67,12 +83,56 @@ const SessionView: React.FC = () => {
   });
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  
+  // Role-based features
+  const [isModerator, setIsModerator] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [moderatorControls, setModeratorControls] = useState({
+    canMuteParticipants: false,
+    canRemoveParticipants: false,
+    canEndSession: false,
+    canRecord: false
+  });
+  const [adminControls, setAdminControls] = useState({
+    canViewAllAnalytics: false,
+    canManageUsers: false,
+    canAccessSystemMetrics: false,
+    canGenerateReports: false
+  });
 
   useEffect(() => {
     if (id) {
       fetchSessionData();
     }
   }, [id]);
+
+  // Initialize role-based features
+  useEffect(() => {
+    if (user) {
+      setIsModerator(user.role === 'moderator');
+      setIsAdmin(user.role === 'admin');
+      
+      // Set moderator controls
+      if (user.role === 'moderator') {
+        setModeratorControls({
+          canMuteParticipants: true,
+          canRemoveParticipants: true,
+          canEndSession: true,
+          canRecord: true
+        });
+      }
+      
+      // Set admin controls
+      if (user.role === 'admin') {
+        setAdminControls({
+          canViewAllAnalytics: true,
+          canManageUsers: true,
+          canAccessSystemMetrics: true,
+          canGenerateReports: true
+        });
+      }
+    }
+  }, [user]);
 
   // Real-time subscription to session updates
   useEffect(() => {
@@ -546,6 +606,106 @@ const SessionView: React.FC = () => {
     }
   };
 
+  // Moderator functions
+  const muteParticipant = async (participantId: string) => {
+    if (!moderatorControls.canMuteParticipants) return;
+    
+    try {
+      // Update participant mute status
+      await supabase
+        .from('session_participants')
+        .update({ is_muted: true })
+        .eq('user_id', participantId)
+        .eq('session_id', id);
+      
+      alert('Participant muted');
+    } catch (error) {
+      console.error('Error muting participant:', error);
+      alert('Failed to mute participant');
+    }
+  };
+
+  const removeParticipant = async (participantId: string) => {
+    if (!moderatorControls.canRemoveParticipants) return;
+    
+    try {
+      // Remove participant from session
+      await supabase
+        .from('session_participants')
+        .delete()
+        .eq('user_id', participantId)
+        .eq('session_id', id);
+      
+      alert('Participant removed from session');
+    } catch (error) {
+      console.error('Error removing participant:', error);
+      alert('Failed to remove participant');
+    }
+  };
+
+  const endSessionAsModerator = async () => {
+    if (!moderatorControls.canEndSession) return;
+    
+    try {
+      // Update session status to completed
+      await supabase
+        .from('sessions')
+        .update({ status: 'completed' })
+        .eq('id', id);
+      
+      alert('Session ended');
+      navigate('/sessions');
+    } catch (error) {
+      console.error('Error ending session:', error);
+      alert('Failed to end session');
+    }
+  };
+
+  // Admin functions
+  const generateSystemReport = async () => {
+    if (!adminControls.canGenerateReports) return;
+    
+    try {
+      // Generate comprehensive system report
+      const reportData = {
+        sessionId: id,
+        participants: participants.length,
+        questions: questions.length,
+        engagementScore: engagementScore,
+        duration: sessionAnalytics.sessionDuration,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Save report to database
+      await supabase
+        .from('session_reports')
+        .insert(reportData);
+      
+      alert('System report generated successfully');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report');
+    }
+  };
+
+  const viewSystemMetrics = async () => {
+    if (!adminControls.canAccessSystemMetrics) return;
+    
+    try {
+      // Fetch system-wide metrics
+      const { data: systemMetrics } = await supabase
+        .from('system_analytics')
+        .select('*')
+        .eq('session_id', id);
+      
+      console.log('System metrics:', systemMetrics);
+      alert('System metrics loaded');
+    } catch (error) {
+      console.error('Error loading system metrics:', error);
+      alert('Failed to load system metrics');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -783,16 +943,39 @@ const SessionView: React.FC = () => {
               </div>
               <div className="space-y-3">
                 {participants.map((participant) => (
-                  <div key={participant.id} className="flex items-center">
-                    <img
-                      src={participant.avatar}
-                      alt={participant.name}
-                      className="w-8 h-8 rounded-full mr-3"
-                    />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-900">{participant.name}</p>
-                      <p className="text-xs text-gray-500">{participant.engagement}% engagement</p>
+                  <div key={participant.id} className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <img
+                        src={participant.avatar}
+                        alt={participant.name}
+                        className="w-8 h-8 rounded-full mr-3"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{participant.name}</p>
+                        <p className="text-xs text-gray-500">{participant.engagement}% engagement</p>
+                      </div>
                     </div>
+                    {/* Moderator Controls */}
+                    {isModerator && moderatorControls.canMuteParticipants && (
+                      <div className="flex space-x-1">
+                        <button
+                          onClick={() => muteParticipant(participant.id)}
+                          className="p-1 text-red-500 hover:text-red-700"
+                          title="Mute Participant"
+                        >
+                          <MicOff className="w-4 h-4" />
+                        </button>
+                        {moderatorControls.canRemoveParticipants && (
+                          <button
+                            onClick={() => removeParticipant(participant.id)}
+                            className="p-1 text-red-500 hover:text-red-700"
+                            title="Remove Participant"
+                          >
+                            <Users className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -913,6 +1096,90 @@ const SessionView: React.FC = () => {
                   Generate Report
                 </button>
               )}
+            </div>
+
+            {/* Moderator Controls */}
+            {isModerator && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Moderator Controls</h3>
+                  <Shield className="w-5 h-5 text-orange-500" />
+                </div>
+                <div className="space-y-3">
+                  <button
+                    onClick={endSessionAsModerator}
+                    disabled={session.status !== 'live'}
+                    className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                  >
+                    End Session
+                  </button>
+                  <div className="text-xs text-gray-500">
+                    <p>• Mute participants using controls above</p>
+                    <p>• Remove participants if needed</p>
+                    <p>• End session when complete</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Admin Controls */}
+            {isAdmin && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Admin Controls</h3>
+                  <Crown className="w-5 h-5 text-purple-500" />
+                </div>
+                <div className="space-y-3">
+                  <button
+                    onClick={generateSystemReport}
+                    className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+                  >
+                    Generate System Report
+                  </button>
+                  <button
+                    onClick={viewSystemMetrics}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    View System Metrics
+                  </button>
+                  <div className="text-xs text-gray-500">
+                    <p>• Access system-wide analytics</p>
+                    <p>• Generate comprehensive reports</p>
+                    <p>• Monitor platform performance</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Real-time Metrics */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Real-time Metrics</h3>
+                <Activity className="w-5 h-5 text-green-500" />
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Active Participants:</span>
+                  <span className="text-sm font-medium text-green-600">{participants.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Questions Asked:</span>
+                  <span className="text-sm font-medium text-blue-600">{questions.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Session Duration:</span>
+                  <span className="text-sm font-medium text-purple-600">
+                    {isSessionLive && sessionStartTime 
+                      ? `${Math.round((new Date().getTime() - sessionStartTime.getTime()) / (1000 * 60))} min`
+                      : '0 min'
+                    }
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Engagement Score:</span>
+                  <span className="text-sm font-medium text-orange-600">{engagementScore}%</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

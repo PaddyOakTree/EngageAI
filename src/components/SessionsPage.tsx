@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import Header from './Header';
 import CreateSessionModal from './CreateSessionModal';
-import { Search, Calendar, Users, TrendingUp, MapPin, Clock, Video, Users as UsersIcon, Plus } from 'lucide-react';
+import { Search, Calendar, Users, TrendingUp, MapPin, Clock, Video, Users as UsersIcon, Plus, Play } from 'lucide-react';
 
 interface Session {
   id: string;
@@ -28,6 +29,7 @@ interface Session {
 const SessionsPage: React.FC = () => {
   const auth = useContext(AuthContext);
   const user = auth?.user;
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,7 +110,8 @@ const SessionsPage: React.FC = () => {
         .single();
 
       if (existingParticipation) {
-        alert('You are already registered for this session');
+        // User is already participating, navigate to session view
+        navigate(`/session/${sessionId}`);
         return;
       }
 
@@ -135,8 +138,8 @@ const SessionsPage: React.FC = () => {
           .eq('id', sessionId);
       }
 
-      alert('Successfully joined session!');
-      fetchSessions(); // Refresh data
+      // Navigate to session view after successful join
+      navigate(`/session/${sessionId}`);
     } catch (error) {
       console.error('Error joining session:', error);
       alert('Failed to join session');
@@ -374,12 +377,13 @@ const SessionsPage: React.FC = () => {
                   <button
                     onClick={() => joinSession(session.id)}
                     disabled={session.status === 'completed' || session.attendees >= session.max_attendees}
-                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                   >
+                    <Play className="w-4 h-4 mr-2" />
                     {session.status === 'completed' 
-                      ? 'Completed' 
+                      ? 'View Session' 
                       : session.attendees >= session.max_attendees 
-                        ? 'Full' 
+                        ? 'Session Full' 
                         : 'Join Session'
                     }
                   </button>
