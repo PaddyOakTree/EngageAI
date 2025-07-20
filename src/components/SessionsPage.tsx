@@ -48,7 +48,9 @@ const SessionsPage: React.FC = () => {
       const { data, error } = await supabase
         .from('sessions')
         .select('*')
-        .order('date', { ascending: true });
+        .order('date', { ascending: false })
+        .order('start_time', { ascending: true })
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching sessions:', error);
