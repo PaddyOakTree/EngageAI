@@ -11,6 +11,7 @@ import SessionView from './components/SessionView';
 import SessionsPage from './components/SessionsPage';
 import AnalyticsPage from './components/AnalyticsPage';
 import PreferencesPage from './components/PreferencesPage';
+import Leaderboard from './components/Leaderboard';
 import AuthCallback from './components/AuthCallback';
 import { User, AuthContextType } from './types/auth';
 
@@ -302,6 +303,7 @@ function App() {
             <Route path="/sessions" element={user ? <SessionsPage /> : <Navigate to="/auth" />} />
             <Route path="/analytics" element={user ? <AnalyticsPage /> : <Navigate to="/auth" />} />
             <Route path="/preferences" element={user ? <PreferencesPage /> : <Navigate to="/auth" />} />
+            <Route path="/leaderboard" element={user ? <Leaderboard /> : <Navigate to="/auth" />} />
           </Routes>
         </div>
       </Router>

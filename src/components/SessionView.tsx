@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
+import { aiService, AIInsight } from '../lib/aiService';
 import Header from './Header';
 import { Video, Users, MessageSquare, TrendingUp, Brain, Mic, MicOff, Camera, CameraOff, Settings, Share2, ArrowLeft } from 'lucide-react';
 
@@ -47,10 +48,11 @@ const SessionView: React.FC = () => {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [engagementScore, setEngagementScore] = useState(0);
-  const [aiInsights, setAiInsights] = useState<string[]>([]);
+  const [aiInsights, setAiInsights] = useState<AIInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isParticipating, setIsParticipating] = useState(false);
+  const [loadingInsights, setLoadingInsights] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -155,8 +157,10 @@ const SessionView: React.FC = () => {
       // Set engagement score
       setEngagementScore(sessionData.engagement_score || 0);
 
-      // Generate AI insights
-      generateAiInsights();
+      // Generate AI insights with real data
+      if (user) {
+        generateAiInsights(sessionData, processedQuestions, processedParticipants);
+      }
 
     } catch (error) {
       console.error('Error fetching session data:', error);
@@ -166,22 +170,59 @@ const SessionView: React.FC = () => {
     }
   };
 
-  const generateAiInsights = () => {
-    const insights = [
-      'High engagement detected during technical demonstrations',
-      'Participants showing strong interest in practical applications',
-      'Questions trend toward implementation details',
-      'Positive sentiment in chat discussions',
-      'Active participation in Q&A sessions',
-      'Strong focus on hands-on learning'
-    ];
-    
-    const interval = setInterval(() => {
-      const randomInsight = insights[Math.floor(Math.random() * insights.length)];
-      setAiInsights(prev => [...prev.slice(-2), randomInsight]);
-    }, 5000);
+  const generateAiInsights = async (sessionData: any, questions: Question[], participants: Participant[]) => {
+    if (!user) return;
 
-    return () => clearInterval(interval);
+    setLoadingInsights(true);
+    try {
+      // Prepare session data for AI analysis
+      const analysisData = {
+        ...sessionData,
+        questionCount: questions.length,
+        participantCount: participants.length,
+        recentQuestions: questions.slice(0, 5).map(q => ({
+          question: q.question,
+          sentiment: q.sentiment
+        })),
+        avgParticipantEngagement: participants.length > 0 
+          ? participants.reduce((sum, p) => sum + p.engagement, 0) / participants.length 
+          : 0
+      };
+
+      // Generate AI insights
+      const insights = await aiService.generateSessionInsights(analysisData, user.id);
+      setAiInsights(insights);
+
+      // Analyze recent questions for sentiment if any exist
+      if (questions.length > 0) {
+        const recentQuestion = questions[0];
+        const analysis = await aiService.analyzeQuestion(recentQuestion.question, user.id);
+        
+        // Add insight about question sentiment if it's notable
+        if (analysis.sentiment.confidence > 0.7) {
+          const sentimentInsight: AIInsight = {
+            type: 'content',
+            message: `Recent question shows ${analysis.sentiment.sentiment} sentiment (${Math.round(analysis.sentiment.confidence * 100)}% confidence)`,
+            confidence: analysis.sentiment.confidence,
+            timestamp: new Date().toISOString()
+          };
+          setAiInsights(prev => [...prev, sentimentInsight]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate AI insights:', error);
+      // Fallback to basic insights
+      setAiInsights([
+        {
+          type: 'engagement',
+          message: 'Session engagement tracking active',
+          confidence: 0.8,
+          timestamp: new Date().toISOString()
+        }
+      ]);
+    } finally {
+      setLoadingInsights(false);
+    }
   };
 
   const joinSession = async () => {
@@ -345,15 +386,43 @@ const SessionView: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center mb-4">
                 <Brain className="w-5 h-5 text-indigo-600 mr-2" />
-                <h3 className="text-lg font-semibold text-gray-900">AI Insights</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  AI Insights
+                  {loadingInsights && (
+                    <span className="ml-2 text-sm text-gray-500">(Analyzing...)</span>
+                  )}
+                </h3>
               </div>
-              <div className="space-y-2">
-                {aiInsights.map((insight, index) => (
-                  <div key={index} className="flex items-start">
-                    <div className="w-2 h-2 bg-indigo-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                    <p className="text-sm text-gray-600">{insight}</p>
+              <div className="space-y-3">
+                {aiInsights.length > 0 ? (
+                  aiInsights.map((insight, index) => (
+                    <div key={index} className="flex items-start p-3 bg-gray-50 rounded-lg">
+                      <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
+                        insight.type === 'engagement' ? 'bg-green-500' :
+                        insight.type === 'participation' ? 'bg-blue-500' :
+                        insight.type === 'content' ? 'bg-purple-500' :
+                        'bg-orange-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-800">{insight.message}</p>
+                        <div className="flex items-center mt-1 text-xs text-gray-500">
+                          <span className="capitalize">{insight.type}</span>
+                          <span className="mx-1">•</span>
+                          <span>{Math.round(insight.confidence * 100)}% confidence</span>
+                          <span className="mx-1">•</span>
+                          <span>{new Date(insight.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4">
+                    <Brain className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">
+                      {loadingInsights ? 'Generating AI insights...' : 'No insights available yet'}
+                    </p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>

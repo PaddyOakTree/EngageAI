@@ -3,6 +3,7 @@ import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import Header from './Header';
 import CreateSessionModal from './CreateSessionModal';
+import Leaderboard from './Leaderboard';
 import { 
   Calendar, 
   Clock, 
@@ -477,6 +478,8 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
+            {/* Mini Leaderboard */}
+            <Leaderboard limit={5} showCurrentUser={true} />
             {/* Quick Actions */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>

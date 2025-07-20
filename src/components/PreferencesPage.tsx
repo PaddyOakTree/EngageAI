@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../App';
 import { supabase, UserPreferences } from '../lib/supabase';
 import Header from './Header';
-import { Bell, Shield, Palette, Globe, Save, Brain, Key, Zap, Settings, Lock, Eye, EyeOff } from 'lucide-react';
+import { Bell, Shield, Palette, Globe, Save, Brain, Key, Zap, Settings, Lock, Eye, EyeOff, Download, Trash2 } from 'lucide-react';
 
 const PreferencesPage: React.FC = () => {
   const auth = useContext(AuthContext);
@@ -114,6 +114,126 @@ const PreferencesPage: React.FC = () => {
       ...prev,
       [provider]: !prev[provider]
     }));
+  };
+
+  const exportUserData = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch all user data from various tables
+      const [
+        { data: profile },
+        { data: preferences },
+        { data: analytics },
+        { data: participation },
+        { data: questions },
+        { data: achievements }
+      ] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase.from('user_preferences').select('*').eq('user_id', user.id).single(),
+        supabase.from('user_analytics').select('*').eq('user_id', user.id),
+        supabase.from('session_participants').select('*, sessions(*)').eq('user_id', user.id),
+        supabase.from('session_questions').select('*, sessions(title)').eq('user_id', user.id),
+        supabase.from('user_achievements').select('*, achievements(*)').eq('user_id', user.id)
+      ]);
+
+      // Compile all data into a single object
+      const userData = {
+        exportInfo: {
+          exportDate: new Date().toISOString(),
+          userId: user.id,
+          email: user.email
+        },
+        profile: profile || {},
+        preferences: preferences || {},
+        analytics: analytics || [],
+        sessionParticipation: participation || [],
+        questionsAsked: questions || [],
+        achievements: achievements || [],
+        summary: {
+          totalSessions: participation?.length || 0,
+          totalQuestions: questions?.length || 0,
+          totalAchievements: achievements?.length || 0,
+          engagementScore: profile?.engagement_score || 0
+        }
+      };
+
+      // Create and download the file
+      const blob = new Blob([JSON.stringify(userData, null, 2)], { 
+        type: 'application/json' 
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `engageai-data-${user.email}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      alert('Your data has been exported successfully!');
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!user) return;
+
+    // Double confirmation for account deletion
+    const firstConfirm = window.confirm(
+      'Are you sure you want to delete your account? This action cannot be undone.'
+    );
+    
+    if (!firstConfirm) return;
+
+    const secondConfirm = window.confirm(
+      'This will permanently delete all your data including:\n' +
+      '• Your profile and preferences\n' +
+      '• Session participation history\n' +
+      '• Questions and achievements\n' +
+      '• Analytics data\n\n' +
+      'Type "DELETE" in the next prompt to confirm.'
+    );
+
+    if (!secondConfirm) return;
+
+    const confirmText = window.prompt(
+      'Please type "DELETE" (in capital letters) to confirm account deletion:'
+    );
+
+    if (confirmText !== 'DELETE') {
+      alert('Account deletion cancelled. The confirmation text did not match.');
+      return;
+    }
+
+    try {
+      // First, delete all user data from related tables
+      // The foreign key constraints with CASCADE should handle most of this,
+      // but we'll be explicit for important data
+      
+      await Promise.all([
+        supabase.from('user_achievements').delete().eq('user_id', user.id),
+        supabase.from('session_questions').delete().eq('user_id', user.id),
+        supabase.from('session_participants').delete().eq('user_id', user.id),
+        supabase.from('user_analytics').delete().eq('user_id', user.id),
+        supabase.from('user_preferences').delete().eq('user_id', user.id),
+        supabase.from('profiles').delete().eq('id', user.id)
+      ]);
+
+      // Sign out the user
+      await auth?.logout();
+      
+      alert('Your account has been successfully deleted. You will now be redirected to the home page.');
+      
+      // Redirect to home page
+      window.location.href = '/';
+      
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      alert('Failed to delete account. Please contact support for assistance.');
+    }
   };
 
   if (loading) {
@@ -416,7 +536,11 @@ const PreferencesPage: React.FC = () => {
                   <h3 className="text-sm font-medium text-gray-900">Export Data</h3>
                   <p className="text-sm text-gray-500">Download all your engagement data</p>
                 </div>
-                <button className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
+                <button 
+                  onClick={exportUserData}
+                  className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Download className="w-4 h-4 mr-2" />
                   Export
                 </button>
               </div>
@@ -426,7 +550,11 @@ const PreferencesPage: React.FC = () => {
                   <h3 className="text-sm font-medium text-red-900">Delete Account</h3>
                   <p className="text-sm text-red-600">Permanently delete your account and all data</p>
                 </div>
-                <button className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors">
+                <button 
+                  onClick={deleteAccount}
+                  className="inline-flex items-center px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
                   Delete
                 </button>
               </div>

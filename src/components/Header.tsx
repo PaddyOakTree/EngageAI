@@ -65,6 +65,16 @@ const Header: React.FC = () => {
               >
                 Analytics
               </Link>
+              <Link
+                to="/leaderboard"
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive('/leaderboard')
+                    ? 'text-indigo-600 bg-indigo-50'
+                    : 'text-gray-700 hover:text-gray-900'
+                }`}
+              >
+                Leaderboard
+              </Link>
               {user?.role === 'admin' && (
                 <Link
                   to="/admin"
