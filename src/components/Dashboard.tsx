@@ -127,6 +127,16 @@ const Dashboard: React.FC = () => {
         stats.questions_asked = questions?.length || 0;
       }
 
+      // Fetch AI insights count
+      const { data: aiInsights, error: aiInsightsError } = await supabase
+        .from('ai_insights')
+        .select('id')
+        .eq('user_id', user.id);
+
+      if (!aiInsightsError) {
+        stats.ai_insights = aiInsights?.length || 0;
+      }
+
       // Fetch user profile for engagement score
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -137,6 +147,37 @@ const Dashboard: React.FC = () => {
       if (!profileError && profile) {
         stats.engagement_score = profile.engagement_score || 0;
       }
+
+      // Fetch previous week's data for comparison
+      const lastWeek = new Date();
+      lastWeek.setDate(lastWeek.getDate() - 7);
+      
+      const { data: prevParticipation } = await supabase
+        .from('session_participants')
+        .select('time_spent')
+        .eq('user_id', user.id)
+        .lt('joined_at', lastWeek.toISOString());
+
+      const { data: prevQuestions } = await supabase
+        .from('session_questions')
+        .select('id')
+        .eq('user_id', user.id)
+        .lt('created_at', lastWeek.toISOString());
+
+      // Calculate changes
+      const prevSessionsCount = prevParticipation?.length || 0;
+      const prevHours = (prevParticipation?.reduce((sum, p) => sum + (p.time_spent || 0), 0) || 0) / 60;
+      const prevQuestionsCount = prevQuestions?.length || 0;
+
+      const calculateChange = (current: number, previous: number) => {
+        if (previous === 0) return current > 0 ? 'New!' : 'No change';
+        const change = ((current - previous) / previous) * 100;
+        return change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
+      };
+
+      const calculateTrend = (current: number, previous: number): 'up' | 'down' => {
+        return current >= previous ? 'up' : 'down';
+      };
 
       // Process achievements with progress
       const processedAchievements = allAchievements?.map((achievement: any) => {
@@ -180,34 +221,37 @@ const Dashboard: React.FC = () => {
 
       setAchievements(processedAchievements);
 
-      // Set quick stats
+      // Set quick stats with real calculated changes
+      const currentHours = stats.total_time_spent / 60;
+      const earnedAchievements = processedAchievements.filter(a => a.earned).length;
+      
       const statsArray: QuickStat[] = [
         {
           icon: Calendar,
           label: 'Sessions Attended',
           value: stats.sessions_attended.toString(),
-          change: '',
-          trend: 'up'
+          change: calculateChange(stats.sessions_attended, prevSessionsCount),
+          trend: calculateTrend(stats.sessions_attended, prevSessionsCount)
         },
         {
           icon: Clock,
           label: 'Total Hours',
-          value: `${(stats.total_time_spent / 60).toFixed(1)}h`,
-          change: '',
-          trend: 'up'
+          value: `${currentHours.toFixed(1)}h`,
+          change: calculateChange(currentHours, prevHours),
+          trend: calculateTrend(currentHours, prevHours)
         },
         {
           icon: MessageSquare,
           label: 'Questions Asked',
           value: stats.questions_asked.toString(),
-          change: '',
-          trend: 'up'
+          change: calculateChange(stats.questions_asked, prevQuestionsCount),
+          trend: calculateTrend(stats.questions_asked, prevQuestionsCount)
         },
         {
           icon: Award,
           label: 'Achievements',
-          value: processedAchievements.filter(a => a.earned).length.toString(),
-          change: '',
+          value: earnedAchievements.toString(),
+          change: earnedAchievements > 0 ? 'New!' : 'No change',
           trend: 'up'
         }
       ];

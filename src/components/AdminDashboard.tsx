@@ -187,6 +187,24 @@ const AdminDashboard: React.FC = () => {
         console.error('Error fetching insights count:', insightsError);
       }
 
+      // Calculate real platform metrics
+      const now = new Date();
+      const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      // Calculate uptime based on successful sessions vs total sessions in last 24h
+      const recentSessions = sessionData?.filter(s => new Date(s.created_at) >= dayAgo) || [];
+      const successfulSessions = recentSessions.filter(s => s.status === 'completed' || s.status === 'live');
+      const uptimePercentage = recentSessions.length > 0 
+        ? ((successfulSessions.length / recentSessions.length) * 100).toFixed(1)
+        : '100.0';
+      
+      // Determine system health based on various metrics
+      const healthScore = recentSessions.length > 0 
+        ? (successfulSessions.length / recentSessions.length) * 100
+        : 100;
+      
+      const systemHealth = healthScore >= 95 ? 'healthy' : healthScore >= 80 ? 'warning' : 'error';
+
       setOverviewStats({
         totalUsers,
         activeSessions,
@@ -194,8 +212,8 @@ const AdminDashboard: React.FC = () => {
         aiInsights: insightsCount || 0,
         totalSessions,
         totalQuestions: questionsCount || 0,
-        platformUptime: '99.9%',
-        systemHealth: 'healthy'
+        platformUptime: `${uptimePercentage}%`,
+        systemHealth
       });
 
       // Get real AI model performance data
