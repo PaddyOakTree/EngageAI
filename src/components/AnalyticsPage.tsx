@@ -131,10 +131,22 @@ const AnalyticsPage: React.FC = () => {
       const { data: questions, error: questionsError } = await supabase
         .from('session_questions')
         .select('id')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .gte('created_at', getDateFromRange(timeRange));
 
       if (!questionsError) {
         stats.questions_asked = questions?.length || 0;
+      }
+
+      // Fetch AI insights count
+      const { data: aiInsights, error: aiInsightsError } = await supabase
+        .from('ai_insights')
+        .select('id')
+        .eq('user_id', user.id)
+        .gte('created_at', getDateFromRange(timeRange));
+
+      if (!aiInsightsError) {
+        stats.ai_insights = aiInsights?.length || 0;
       }
 
       // Fetch user profile for engagement score
@@ -230,7 +242,15 @@ const AnalyticsPage: React.FC = () => {
       return [];
     }
 
-    return Object.values(data).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Process and aggregate analytics data by date
+    const processedData = data.map((item: any) => ({
+      date: item.date,
+      engagement: item.engagement_score || 0,
+      sessions: item.sessions_attended || 0,
+      questions: item.questions_asked || 0
+    }));
+
+    return processedData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
   const calculateOverviewStats = (analytics: any[], _participation: any[]) => {
@@ -240,37 +260,68 @@ const AnalyticsPage: React.FC = () => {
     const totalHours = analytics.reduce((sum, item) => sum + (parseFloat(item.total_hours) || 0), 0);
     const totalBadges = analytics.reduce((sum, item) => sum + (item.badges_earned || 0), 0);
 
+    // Calculate real percentage changes based on historical data
+    const calculateChange = (current: number, previous: number): { change: string; trend: 'up' | 'down' | 'neutral' } => {
+      if (previous === 0) return { change: 'New', trend: 'neutral' };
+      const percentChange = ((current - previous) / previous) * 100;
+      const trend = percentChange > 0 ? 'up' : percentChange < 0 ? 'down' : 'neutral';
+      const sign = percentChange > 0 ? '+' : '';
+      return { change: `${sign}${percentChange.toFixed(1)}%`, trend };
+    };
+
+    // Calculate previous period stats for comparison
+    const midpoint = Math.floor(analytics.length / 2);
+    const recentData = analytics.slice(midpoint);
+    const previousData = analytics.slice(0, midpoint);
+
+    const prevEngagement = previousData.length > 0 ? 
+      Math.round(previousData.reduce((sum, item) => sum + (item.engagement_score || 0), 0) / previousData.length) : 0;
+    const prevSessions = previousData.reduce((sum, item) => sum + (item.sessions_attended || 0), 0);
+    const prevHours = previousData.reduce((sum, item) => sum + (parseFloat(item.total_hours) || 0), 0);
+    const prevBadges = previousData.reduce((sum, item) => sum + (item.badges_earned || 0), 0);
+
+    const recentEngagement = recentData.length > 0 ? 
+      Math.round(recentData.reduce((sum, item) => sum + (item.engagement_score || 0), 0) / recentData.length) : avgEngagement;
+    const recentSessions = recentData.reduce((sum, item) => sum + (item.sessions_attended || 0), 0);
+    const recentHours = recentData.reduce((sum, item) => sum + (parseFloat(item.total_hours) || 0), 0);
+    const recentBadges = recentData.reduce((sum, item) => sum + (item.badges_earned || 0), 0);
+
+    const engagementChange = calculateChange(recentEngagement, prevEngagement);
+    const sessionsChange = calculateChange(recentSessions, prevSessions);
+    const hoursChange = calculateChange(recentHours, prevHours);
+    const badgesChange = calculateChange(recentBadges, prevBadges);
+
     return [
       {
         icon: TrendingUp,
         label: 'Avg Engagement',
         value: `${avgEngagement}%`,
-        change: '+5.2%',
-        trend: 'up',
+        change: engagementChange.change,
+        trend: engagementChange.trend,
         color: 'indigo'
       },
       {
         icon: Calendar,
         label: 'Sessions Attended',
         value: totalSessions.toString(),
-        change: '+12%',
-        trend: 'up',
+        change: sessionsChange.change,
+        trend: sessionsChange.trend,
         color: 'green'
       },
       {
         icon: Clock,
         label: 'Total Hours',
         value: `${totalHours.toFixed(1)}h`,
-        change: '+8.3%',
-        trend: 'up',
+        change: hoursChange.change,
+        trend: hoursChange.trend,
         color: 'blue'
       },
       {
         icon: Award,
         label: 'Badges Earned',
         value: totalBadges.toString(),
-        change: '+2',
-        trend: 'up',
+        change: badgesChange.change,
+        trend: badgesChange.trend,
         color: 'purple'
       }
     ];
@@ -326,21 +377,41 @@ const AnalyticsPage: React.FC = () => {
     return iconMap[iconName] || Award;
   };
 
+  const refreshData = async () => {
+    setError(null);
+    await fetchAnalyticsData();
+  };
+
   const exportData = () => {
+    if (!analyticsData.length && !achievements.length) {
+      alert('No data available to export. Please check your analytics data.');
+      return;
+    }
+
     const data = {
       user: user?.name,
+      userId: user?.id,
       timeRange,
+      generatedAt: new Date().toISOString(),
       stats: overviewStats,
       analyticsData,
-      achievements,
-      exportDate: new Date().toISOString()
+      achievements: achievements.filter(a => a.earned),
+      sessionBreakdown,
+      topSessions,
+      summary: {
+        totalDataPoints: analyticsData.length,
+        totalAchievements: achievements.filter(a => a.earned).length,
+        avgEngagement: overviewStats.find(s => s.label === 'Avg Engagement')?.value || '0%',
+        totalSessions: overviewStats.find(s => s.label === 'Sessions Attended')?.value || '0',
+        totalHours: overviewStats.find(s => s.label === 'Total Hours')?.value || '0h'
+      }
     };
     
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `engagement-analytics-${timeRange}.json`;
+    a.download = `${user?.name?.replace(/\s+/g, '-') || 'user'}-analytics-${timeRange}-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -373,7 +444,7 @@ const AnalyticsPage: React.FC = () => {
           </div>
           <div className="flex items-center space-x-4 mt-4 sm:mt-0">
             <button
-              onClick={fetchAnalyticsData}
+              onClick={refreshData}
               className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <RefreshCw className="w-4 h-4 mr-2" />

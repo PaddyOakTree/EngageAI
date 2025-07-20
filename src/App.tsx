@@ -145,28 +145,38 @@ function App() {
 
   const login = (email: string, password: string): Promise<User> => {
     return new Promise(async (resolve, reject) => {
+      // Add timeout protection
+      const timeoutId = setTimeout(() => {
+        console.error('Login timeout after 15 seconds');
+        reject(new Error('Login timeout - please try again'));
+      }, 15000); // Increased to 15 second timeout
+
       try {
+        console.log('Attempting login for:', email);
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
         });
 
         if (error) {
+          console.error('Auth error:', error);
+          clearTimeout(timeoutId);
           reject(new Error(error.message));
           return;
         }
 
-        if (data.user) {
-          await loadUserProfile(data.user.id, data.user.email!);
+        if (data.user && data.session) {
+          console.log('Auth successful, fetching profile for user:', data.user.id);
           
-          // Get the updated user from state after profile loading
-          const { data: profile } = await supabase
+          // Single database call to get profile
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
             .single();
 
-          if (profile) {
+          if (profile && !profileError) {
+            console.log('Profile found:', profile.name);
             const userObj: User = {
               id: profile.id,
               email: data.user.email!,
@@ -179,12 +189,64 @@ function App() {
               totalEvents: profile.total_events,
               badges: profile.badges
             };
+            
+            // Update the app state
+            setUser(userObj);
+            clearTimeout(timeoutId);
             resolve(userObj);
+          } else if (profileError && profileError.code === 'PGRST116') {
+            console.log('Profile not found, creating new profile');
+            // Profile doesn't exist, create one quickly
+            const defaultProfile = {
+              id: data.user.id,
+              name: data.user.email!.split('@')[0],
+              organization: '',
+              role: 'student' as const,
+              engagement_score: 0,
+              total_events: 0,
+              badges: ['New Member']
+            };
+
+            const { error: createError } = await supabase
+              .from('profiles')
+              .insert(defaultProfile);
+
+            if (!createError) {
+              console.log('New profile created successfully');
+              const userObj: User = {
+                id: data.user.id,
+                email: data.user.email!,
+                name: defaultProfile.name,
+                role: defaultProfile.role,
+                avatar_url: undefined, // Let user add their own avatar
+                organization: defaultProfile.organization,
+                joinedDate: new Date().toISOString().split('T')[0],
+                engagementScore: defaultProfile.engagement_score,
+                totalEvents: defaultProfile.total_events,
+                badges: defaultProfile.badges
+              };
+              
+              setUser(userObj);
+              clearTimeout(timeoutId);
+              resolve(userObj);
+            } else {
+              console.error('Failed to create profile:', createError);
+              clearTimeout(timeoutId);
+              reject(new Error('Failed to create user profile'));
+            }
           } else {
+            console.error('Profile error:', profileError);
+            clearTimeout(timeoutId);
             reject(new Error('Failed to load user profile'));
           }
+        } else {
+          console.error('No user session after login');
+          clearTimeout(timeoutId);
+          reject(new Error('Authentication failed - no session created'));
         }
       } catch (error) {
+        console.error('Login catch error:', error);
+        clearTimeout(timeoutId);
         reject(error);
       }
     });
