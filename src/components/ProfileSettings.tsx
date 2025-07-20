@@ -1,9 +1,9 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useRef } from 'react';
 import { useEffect } from 'react';
 import { AuthContext } from '../App';
 import { supabase, UserPreferences } from '../lib/supabase';
 import Header from './Header';
-import { User, Bell, Shield, Palette, Globe, Save, Camera, Award, Brain, Key } from 'lucide-react';
+import { User, Bell, Shield, Palette, Globe, Save, Camera, Award, Brain, Key, Upload, X } from 'lucide-react';
 
 const ProfileSettings: React.FC = () => {
   const auth = useContext(AuthContext);
@@ -24,6 +24,10 @@ const ProfileSettings: React.FC = () => {
     googleApiKey: '',
     groqApiKey: ''
   });
+
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -124,6 +128,91 @@ const ProfileSettings: React.FC = () => {
     });
   };
 
+  const validateFile = (file: File): string | null => {
+    // Check file size (5MB = 5 * 1024 * 1024 bytes)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return 'File size must be less than 5MB';
+    }
+
+    // Check file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return 'Only JPEG, PNG, GIF, and WebP images are allowed';
+    }
+
+    return null;
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file
+    const validationError = validateFile(file);
+    if (validationError) {
+      setUploadError(validationError);
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      // Create a unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `profile-images/${fileName}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('profile-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile-images')
+        .getPublicUrl(filePath);
+
+      // Update user profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Update local user state
+      auth?.updateUser({
+        avatar_url: publicUrl
+      });
+
+      alert('Profile image updated successfully!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setUploadError('Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
   if (loadingPrefs) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -198,14 +287,48 @@ const ProfileSettings: React.FC = () => {
                       />
                       <button
                         type="button"
-                        className="absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 text-white hover:bg-indigo-700 transition-colors"
+                        onClick={triggerFileUpload}
+                        disabled={uploading}
+                        className="absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Camera className="w-3 h-3" />
+                        {uploading ? (
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                        ) : (
+                          <Camera className="w-3 h-3" />
+                        )}
                       </button>
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-sm font-medium text-gray-900">Profile Photo</h3>
-                      <p className="text-sm text-gray-500">Choose a photo that represents you</p>
+                      <p className="text-sm text-gray-500 mb-2">Choose a photo that represents you (max 5MB)</p>
+                      
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      
+                      {/* Upload button */}
+                      <button
+                        type="button"
+                        onClick={triggerFileUpload}
+                        disabled={uploading}
+                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Upload className="w-4 h-4 mr-1" />
+                        {uploading ? 'Uploading...' : 'Upload Image'}
+                      </button>
+                      
+                      {/* Error message */}
+                      {uploadError && (
+                        <div className="mt-2 flex items-center text-sm text-red-600">
+                          <X className="w-4 h-4 mr-1" />
+                          {uploadError}
+                        </div>
+                      )}
                     </div>
                   </div>
 

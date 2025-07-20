@@ -109,10 +109,11 @@ const AnalyticsPage: React.FC = () => {
 
       if (achievementsError) throw achievementsError;
 
-      // Fetch all achievements to show progress
+      // Fetch all achievements to show progress (filtered by role)
       const { data: allAchievements, error: allAchievementsError } = await supabase
         .from('achievements')
         .select('*')
+        .or(`role_restriction.is.null,role_restriction.eq.${user.role}`)
         .order('created_at', { ascending: true });
 
       if (allAchievementsError) throw allAchievementsError;
