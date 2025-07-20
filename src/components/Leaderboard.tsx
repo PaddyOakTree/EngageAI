@@ -44,28 +44,96 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       setLoading(true);
       setError(null);
 
-      // Build query based on selected metric
-      let query = supabase
-        .from('profiles')
-        .select('id, name, avatar_url, organization, engagement_score, total_events, badges');
-        // Note: privacy_leaderboard_visible column doesn't exist in current schema
+      // For timeframe filtering, we'll use user_analytics table for recent data
+      // and profiles table for all-time data
+      let data;
+      let fetchError;
 
-      // Filter by organization if specified
-      if (organization) {
-        query = query.eq('organization', organization);
-      }
+      if (timeframe === 'all-time') {
+        // Use profiles table for all-time leaderboard
+        let query = supabase
+          .from('profiles')
+          .select('id, name, avatar_url, organization, engagement_score, total_events, badges')
+          .not('engagement_score', 'is', null);
 
-      // Order by selected metric
-      if (selectedMetric === 'engagement') {
-        query = query.order('engagement_score', { ascending: false });
+        // Filter by organization if specified
+        if (organization) {
+          query = query.eq('organization', organization);
+        }
+
+        // Order by selected metric
+        if (selectedMetric === 'engagement') {
+          query = query.order('engagement_score', { ascending: false });
+        } else {
+          query = query.order('total_events', { ascending: false });
+        }
+
+        // Apply limit
+        query = query.limit(limit);
+
+        const result = await query;
+        data = result.data;
+        fetchError = result.error;
       } else {
-        query = query.order('total_events', { ascending: false });
+        // Use user_analytics for timeframe-based data
+        const dateFilter = timeframe === 'weekly' 
+          ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        let analyticsQuery = supabase
+          .from('user_analytics')
+          .select(`
+            user_id,
+            engagement_score,
+            sessions_attended,
+            profiles!inner(id, name, avatar_url, organization, badges)
+          `)
+          .gte('date', dateFilter);
+
+        if (organization) {
+          analyticsQuery = analyticsQuery.eq('profiles.organization', organization);
+        }
+
+        const analyticsResult = await analyticsQuery;
+        
+        if (analyticsResult.error) {
+          fetchError = analyticsResult.error;
+        } else {
+          // Aggregate data by user for the timeframe
+          const userStats = new Map();
+          
+          analyticsResult.data?.forEach(record => {
+            const userId = record.user_id;
+            const profile = Array.isArray(record.profiles) ? record.profiles[0] : record.profiles;
+            
+            if (!userStats.has(userId)) {
+              userStats.set(userId, {
+                id: userId,
+                name: profile.name,
+                avatar_url: profile.avatar_url,
+                organization: profile.organization,
+                badges: profile.badges || [],
+                engagement_score: 0,
+                total_events: 0
+              });
+            }
+            
+            const stats = userStats.get(userId);
+            stats.engagement_score = Math.max(stats.engagement_score, record.engagement_score || 0);
+            stats.total_events += record.sessions_attended || 0;
+          });
+          
+          data = Array.from(userStats.values())
+            .sort((a, b) => {
+              if (selectedMetric === 'engagement') {
+                return b.engagement_score - a.engagement_score;
+              } else {
+                return b.total_events - a.total_events;
+              }
+            })
+            .slice(0, limit);
+        }
       }
-
-      // Apply limit
-      query = query.limit(limit);
-
-      const { data, error: fetchError } = await query;
 
       if (fetchError) {
         throw fetchError;
@@ -208,7 +276,12 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           <div className="text-center py-8">
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No leaderboard data available</p>
-            <p className="text-sm text-gray-400">Users need to opt-in to leaderboard visibility</p>
+            <p className="text-sm text-gray-400">
+              {timeframe === 'all-time' 
+                ? 'No users with engagement data found' 
+                : `No activity found in the ${timeframe === 'weekly' ? 'last 7 days' : 'last 30 days'}`
+              }
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -229,11 +302,24 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
 
                   {/* User Info */}
                   <div className="flex items-center space-x-3">
-                    <img
-                      src={entry.avatar_url || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&fit=crop'}
-                      alt={entry.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                      {entry.avatar_url ? (
+                        <img
+                          src={entry.avatar_url}
+                          alt={entry.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget as HTMLImageElement;
+                            const sibling = target.nextElementSibling as HTMLElement;
+                            target.style.display = 'none';
+                            if (sibling) sibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <span className={entry.avatar_url ? 'hidden' : 'block'}>
+                        {entry.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
                     <div>
                       <h3 className="font-medium text-gray-900 flex items-center">
                         {entry.name}
@@ -292,11 +378,24 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
                   <span className="text-sm font-bold text-indigo-700">#{currentUserRank.rank}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <img
-                    src={currentUserRank.avatar_url || 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=50&h=50&fit=crop'}
-                    alt={currentUserRank.name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                    {currentUserRank.avatar_url ? (
+                      <img
+                        src={currentUserRank.avatar_url}
+                        alt={currentUserRank.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                        onError={(e) => {
+                          const target = e.currentTarget as HTMLImageElement;
+                          const sibling = target.nextElementSibling as HTMLElement;
+                          target.style.display = 'none';
+                          if (sibling) sibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <span className={currentUserRank.avatar_url ? 'hidden' : 'block'}>
+                      {currentUserRank.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
                   <div>
                     <h3 className="font-medium text-gray-900">{currentUserRank.name} (You)</h3>
                     {currentUserRank.organization && (
