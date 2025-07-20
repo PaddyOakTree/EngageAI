@@ -9,27 +9,13 @@ import {
   Clock, 
   TrendingUp, 
   Award, 
-  Users, 
   MessageSquare,
-  Star,
-  Brain,
-  Target,
-  Trophy,
   CheckCircle,
   Circle,
   Plus
 } from 'lucide-react';
 
-interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  date: string;
-  icon: string;
-  earned: boolean;
-  progress?: number;
-  target?: number;
-}
+
 
 interface QuickStat {
   icon: any;
@@ -47,7 +33,7 @@ const Dashboard: React.FC = () => {
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [quickStats, setQuickStats] = useState<QuickStat[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const fetchDashboardData = async () => {
@@ -81,32 +67,7 @@ const Dashboard: React.FC = () => {
 
       if (participationError) throw participationError;
 
-      // Fetch user achievements
-      const { data: userAchievements, error: achievementsError } = await supabase
-        .from('user_achievements')
-        .select(`
-          earned_at,
-          achievements (
-            id,
-            name,
-            description,
-            icon,
-            criteria
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('earned_at', { ascending: false });
 
-      if (achievementsError) throw achievementsError;
-
-      // Fetch all achievements to show progress (filtered by role)
-      const { data: allAchievements, error: allAchievementsError } = await supabase
-        .from('achievements')
-        .select('*')
-        .or(`role_restriction.is.null,role_restriction.eq.${user.role}`)
-        .order('created_at', { ascending: true });
-
-      if (allAchievementsError) throw allAchievementsError;
 
       // Calculate user statistics
       const stats = {
@@ -179,51 +140,11 @@ const Dashboard: React.FC = () => {
         return current >= previous ? 'up' : 'down';
       };
 
-      // Process achievements with progress
-      const processedAchievements = allAchievements?.map((achievement: any) => {
-        const earned = userAchievements?.some((ua: any) => ua.achievements.id === achievement.id);
-        let progress = 0;
-        let target = 0;
 
-        if (achievement.criteria?.type && achievement.criteria?.value) {
-          target = achievement.criteria.value;
-          
-          switch (achievement.criteria.type) {
-            case 'questions_asked':
-              progress = Math.min(stats.questions_asked, target);
-              break;
-            case 'sessions_attended':
-              progress = Math.min(stats.sessions_attended, target);
-              break;
-            case 'total_hours':
-              progress = Math.min(stats.total_time_spent / 60, target);
-              break;
-            case 'engagement_score':
-              progress = Math.min(stats.engagement_score, target);
-              break;
-            case 'ai_insights':
-              progress = Math.min(stats.ai_insights, target);
-              break;
-          }
-        }
-
-        return {
-          id: achievement.id,
-          name: achievement.name,
-          description: achievement.description,
-          date: earned ? userAchievements?.find((ua: any) => ua.achievements.id === achievement.id)?.earned_at : null,
-          icon: achievement.icon,
-          earned: !!earned,
-          progress: Math.round((progress / target) * 100),
-          target
-        };
-      }) || [];
-
-      setAchievements(processedAchievements);
 
       // Set quick stats with real calculated changes
       const currentHours = stats.total_time_spent / 60;
-      const earnedAchievements = processedAchievements.filter(a => a.earned).length;
+      const earnedAchievements = 0; // Achievements component removed
       
       const statsArray: QuickStat[] = [
         {
@@ -272,21 +193,7 @@ const Dashboard: React.FC = () => {
     fetchDashboardData();
   }, [user]);
 
-  const getIconComponent = (iconName: string) => {
-    const iconMap: { [key: string]: any } = {
-      'Calendar': Calendar,
-      'MessageSquare': MessageSquare,
-      'TrendingUp': TrendingUp,
-      'Award': Award,
-      'Star': Star,
-      'Clock': Clock,
-      'Brain': Brain,
-      'Users': Users,
-      'Trophy': Trophy,
-      'Target': Target
-    };
-    return iconMap[iconName] || Award;
-  };
+
 
   const joinSession = async (sessionId: string) => {
     if (!user) return;
@@ -459,70 +366,8 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column - Achievements */}
+          {/* Right Column */}
           <div className="space-y-8">
-            {/* Achievements */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Achievements</h2>
-                <span className="text-sm text-gray-600">
-                  {achievements.filter(a => a.earned).length}/{achievements.length}
-                </span>
-              </div>
-              
-              <div className="space-y-4">
-                {achievements.slice(0, 6).map((achievement) => {
-                  const IconComponent = getIconComponent(achievement.icon);
-                  return (
-                    <div 
-                      key={achievement.id} 
-                      className={`p-3 rounded-lg border-2 transition-all duration-200 ${
-                        achievement.earned 
-                          ? 'border-green-200 bg-green-50' 
-                          : 'border-gray-200 bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          achievement.earned 
-                            ? 'bg-green-100 text-green-600' 
-                            : 'bg-gray-100 text-gray-400'
-                        }`}>
-                          <IconComponent className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className={`font-medium text-sm ${
-                            achievement.earned ? 'text-green-900' : 'text-gray-900'
-                          }`}>
-                            {achievement.name}
-                          </h4>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {achievement.description}
-                          </p>
-                          {!achievement.earned && achievement.progress !== undefined && (
-                            <div className="mt-2">
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div 
-                                  className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
-                                  style={{ width: `${achievement.progress}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {achievements.length > 6 && (
-                <button className="w-full mt-4 text-sm text-indigo-600 hover:text-indigo-700 font-medium">
-                  View all achievements
-                </button>
-              )}
-            </div>
-
             {/* Mini Leaderboard */}
             <Leaderboard limit={5} showCurrentUser={true} />
             {/* Quick Actions */}
