@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -8,6 +8,7 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        // Get the current session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (session) {
@@ -17,7 +18,7 @@ const AuthCallback = () => {
           console.error('Auth callback error:', error);
           navigate('/auth?error=confirmation_failed');
         } else {
-          // No session found, redirect to auth page
+          // No session, redirect to auth page
           navigate('/auth');
         }
       } catch (error) {

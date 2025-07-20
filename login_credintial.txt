@@ -1,0 +1,29 @@
+# Student 71
+
+👤 Name: Adrian Barnes
+🏢 Organization: Digital Institute
+📧 Email: student71@engageai.edu
+🔑 Password: Student712024!
+�� Engagement Score: 95
+�� Total Events: 5
+🏆 Badges: ["First Session"]
+
+# Moderator 10
+
+�� Name: David Wilson
+🏢 Organization: Community College
+�� Email: moderator10@engageai.edu
+🔑 Password: Moderator102024!
+�� Engagement Score: 86
+🎯 Total Events: 27
+🏆 Badges: ["Moderator", "Session Manager"]
+
+# Admin User    
+
+👤 Name: Admin User
+🏢 Organization: EngageAI Platform
+📧 Email: admin@engageai.com
+�� Password: Admin2024!
+�� Engagement Score: 95
+🎯 Total Events: 50
+🏆 Badges: ["Admin", "Platform Manager", "Super User"]
