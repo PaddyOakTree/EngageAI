@@ -723,30 +723,6 @@ docker run -p 3000:3000 engageai
 | Type Safety | TypeScript |
 | Testing | Jest |
 
-## 📄 License
-
-**MIT License** - Open source and free to use.
-
-### **License Summary**
-
-```
-MIT License
-
-Copyright (c) 2025 EngageAI
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
-
----
-
 ## 🙏 Acknowledgments
 
 - **Supabase** for the amazing backend-as-a-service platform
@@ -754,15 +730,6 @@ copies or substantial portions of the Software.
 - **Tailwind CSS** for the utility-first CSS framework
 - **Lucide** for the beautiful icon library
 - **Netlify** for seamless deployment and hosting
-
-## 📞 Support
-
-- **Documentation**: [GitHub Wiki](https://github.com/your-username/engageai/wiki)
-- **Issues**: [GitHub Issues](https://github.com/your-username/engageai/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/your-username/engageai/discussions)
-- **Email**: support@engageai.com
-
----
 
 <div align="center">
 
