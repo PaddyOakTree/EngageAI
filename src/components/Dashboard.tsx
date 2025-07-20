@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import Header from './Header';
+import CreateSessionModal from './CreateSessionModal';
 import { 
   Calendar, 
   Clock, 
@@ -14,7 +15,8 @@ import {
   Target,
   Trophy,
   CheckCircle,
-  Circle
+  Circle,
+  Plus
 } from 'lucide-react';
 
 interface Achievement {
@@ -45,6 +47,7 @@ const Dashboard: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [quickStats, setQuickStats] = useState<QuickStat[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const fetchDashboardData = async () => {
     if (!user) return;
@@ -487,6 +490,17 @@ const Dashboard: React.FC = () => {
                   <span className="text-sm text-gray-500">→</span>
                 </button>
                 
+                <button 
+                  onClick={() => setShowCreateModal(true)}
+                  className="w-full flex items-center justify-between p-3 text-left bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <Plus className="w-5 h-5 text-purple-600" />
+                    <span className="font-medium text-gray-900">Create Session</span>
+                  </div>
+                  <span className="text-sm text-gray-500">→</span>
+                </button>
+                
                 <button className="w-full flex items-center justify-between p-3 text-left bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
                   <div className="flex items-center space-x-3">
                     <MessageSquare className="w-5 h-5 text-green-600" />
@@ -506,6 +520,13 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Create Session Modal */}
+        <CreateSessionModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSessionCreated={fetchDashboardData}
+        />
       </main>
     </div>
   );

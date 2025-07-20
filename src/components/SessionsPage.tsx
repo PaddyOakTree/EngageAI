@@ -2,7 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import Header from './Header';
-import { Search, Calendar, Users, TrendingUp, MapPin, Clock, Video, Users as UsersIcon } from 'lucide-react';
+import CreateSessionModal from './CreateSessionModal';
+import { Search, Calendar, Users, TrendingUp, MapPin, Clock, Video, Users as UsersIcon, Plus } from 'lucide-react';
 
 interface Session {
   id: string;
@@ -34,6 +35,7 @@ const SessionsPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'virtual' | 'hybrid' | 'in-person'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Fetch real sessions data from Supabase
   useEffect(() => {
@@ -178,8 +180,21 @@ const SessionsPage: React.FC = () => {
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Sessions</h1>
-          <p className="text-gray-600">Discover and join engaging learning sessions</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Sessions</h1>
+              <p className="text-gray-600">Discover and join engaging learning sessions</p>
+            </div>
+            <div className="mt-4 sm:mt-0">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg hover:shadow-xl"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Create Session
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Search and Filters */}
@@ -365,6 +380,13 @@ const SessionsPage: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* Create Session Modal */}
+        <CreateSessionModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSessionCreated={fetchSessions}
+        />
       </main>
     </div>
   );
