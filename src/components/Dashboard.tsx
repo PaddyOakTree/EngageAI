@@ -375,6 +375,7 @@ const Dashboard: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
               
               <div className="space-y-3">
+                {/* Common actions for all roles */}
                 <button className="w-full flex items-center justify-between p-3 text-left bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
                   <div className="flex items-center space-x-3">
                     <Calendar className="w-5 h-5 text-indigo-600" />
@@ -383,32 +384,96 @@ const Dashboard: React.FC = () => {
                   <span className="text-sm text-gray-500">→</span>
                 </button>
                 
-                <button 
-                  onClick={() => setShowCreateModal(true)}
-                  className="w-full flex items-center justify-between p-3 text-left bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Plus className="w-5 h-5 text-purple-600" />
-                    <span className="font-medium text-gray-900">Create Session</span>
-                  </div>
-                  <span className="text-sm text-gray-500">→</span>
-                </button>
+                {/* Role-specific actions */}
+                {user?.role === 'student' && (
+                  <>
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <MessageSquare className="w-5 h-5 text-green-600" />
+                        <span className="font-medium text-gray-900">Ask Questions</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                    
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <TrendingUp className="w-5 h-5 text-blue-600" />
+                        <span className="font-medium text-gray-900">View My Progress</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                  </>
+                )}
                 
-                <button className="w-full flex items-center justify-between p-3 text-left bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <MessageSquare className="w-5 h-5 text-green-600" />
-                    <span className="font-medium text-gray-900">Ask Questions</span>
-                  </div>
-                  <span className="text-sm text-gray-500">→</span>
-                </button>
+                {user?.role === 'moderator' && (
+                  <>
+                    <button 
+                      onClick={() => setShowCreateModal(true)}
+                      className="w-full flex items-center justify-between p-3 text-left bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Plus className="w-5 h-5 text-purple-600" />
+                        <span className="font-medium text-gray-900">Create Session</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                    
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <Award className="w-5 h-5 text-orange-600" />
+                        <span className="font-medium text-gray-900">Manage Sessions</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                    
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <TrendingUp className="w-5 h-5 text-green-600" />
+                        <span className="font-medium text-gray-900">View Analytics</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                  </>
+                )}
                 
-                <button className="w-full flex items-center justify-between p-3 text-left bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
-                  <div className="flex items-center space-x-3">
-                    <TrendingUp className="w-5 h-5 text-purple-600" />
-                    <span className="font-medium text-gray-900">View Analytics</span>
-                  </div>
-                  <span className="text-sm text-gray-500">→</span>
-                </button>
+                {user?.role === 'admin' && (
+                  <>
+                    <button 
+                      onClick={() => setShowCreateModal(true)}
+                      className="w-full flex items-center justify-between p-3 text-left bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Plus className="w-5 h-5 text-purple-600" />
+                        <span className="font-medium text-gray-900">Create Session</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                    
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <Award className="w-5 h-5 text-red-600" />
+                        <span className="font-medium text-gray-900">Admin Dashboard</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                    
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <TrendingUp className="w-5 h-5 text-yellow-600" />
+                        <span className="font-medium text-gray-900">System Analytics</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                    
+                    <button className="w-full flex items-center justify-between p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <MessageSquare className="w-5 h-5 text-gray-600" />
+                        <span className="font-medium text-gray-900">Manage Users</span>
+                      </div>
+                      <span className="text-sm text-gray-500">→</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
