@@ -226,19 +226,7 @@ const AnalyticsPage: React.FC = () => {
 
   const processAnalyticsData = (data: any[]): AnalyticsData[] => {
     if (!data.length) {
-      // Generate mock data for demonstration
-      const mockData: AnalyticsData[] = [];
-      const now = new Date();
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-        mockData.push({
-          date: date.toISOString().split('T')[0],
-          engagement: Math.floor(Math.random() * 100),
-          sessions: Math.floor(Math.random() * 5),
-          questions: Math.floor(Math.random() * 10)
-        });
-      }
-      return mockData;
+      return [];
     }
 
     return Object.values(data).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -288,15 +276,23 @@ const AnalyticsPage: React.FC = () => {
   };
 
   const calculateSessionBreakdown = (_participation: any[]): SessionBreakdown[] => {
-    // This would be calculated based on session types or categories
-    // For now, using mock data structure
-    return [
-      { name: 'AI & ML Sessions', value: 35, color: 'bg-indigo-500' },
-      { name: 'Web Development', value: 25, color: 'bg-blue-500' },
-      { name: 'Data Science', value: 20, color: 'bg-green-500' },
-      { name: 'Cybersecurity', value: 12, color: 'bg-purple-500' },
-      { name: 'Other', value: 8, color: 'bg-gray-500' }
-    ];
+    // Calculate based on actual session participation data
+    const breakdown: { [key: string]: number } = {};
+    
+    _participation.forEach((participation: any) => {
+      if (participation.sessions?.tags) {
+        participation.sessions.tags.forEach((tag: string) => {
+          breakdown[tag] = (breakdown[tag] || 0) + 1;
+        });
+      }
+    });
+
+    const colors = ['bg-indigo-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-gray-500'];
+    return Object.entries(breakdown).map(([name, value], index) => ({
+      name,
+      value,
+      color: colors[index % colors.length]
+    }));
   };
 
   const processTopSessions = (_participation: any[]): TopSession[] => {

@@ -185,28 +185,28 @@ const Dashboard: React.FC = () => {
           icon: Calendar,
           label: 'Sessions Attended',
           value: stats.sessions_attended.toString(),
-          change: '+2 this week',
+          change: '',
           trend: 'up'
         },
         {
           icon: Clock,
           label: 'Total Hours',
           value: `${(stats.total_time_spent / 60).toFixed(1)}h`,
-          change: '+1.5h this week',
+          change: '',
           trend: 'up'
         },
         {
           icon: MessageSquare,
           label: 'Questions Asked',
           value: stats.questions_asked.toString(),
-          change: '+3 this week',
+          change: '',
           trend: 'up'
         },
         {
           icon: Award,
           label: 'Achievements',
           value: processedAchievements.filter(a => a.earned).length.toString(),
-          change: `+${processedAchievements.filter(a => a.earned).length} earned`,
+          change: '',
           trend: 'up'
         }
       ];

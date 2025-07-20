@@ -122,25 +122,13 @@ const AdminDashboard: React.FC = () => {
 
       setRecentSessions(processedSessions);
 
-      // Mock AI model stats (in real app, this would come from AI service logs)
-      const mockAiStats = [
-        { name: 'Gemini', requests: 15420, uptime: '99.8%', avgResponse: '120ms', status: 'healthy' },
-        { name: 'Groq', requests: 12330, uptime: '99.9%', avgResponse: '85ms', status: 'healthy' },
-        { name: 'Cohere', requests: 8750, uptime: '98.5%', avgResponse: '200ms', status: 'warning' }
-      ];
-      setAiModelStats(mockAiStats);
+      // AI model stats would come from actual AI service logs
+      // For now, showing empty state
+      setAiModelStats([]);
 
-      // Mock engagement data
-      const mockEngagementData = [
-        { day: 'Mon', engagement: 82 },
-        { day: 'Tue', engagement: 85 },
-        { day: 'Wed', engagement: 78 },
-        { day: 'Thu', engagement: 91 },
-        { day: 'Fri', engagement: 88 },
-        { day: 'Sat', engagement: 76 },
-        { day: 'Sun', engagement: 84 }
-      ];
-      setEngagementData(mockEngagementData);
+      // Engagement data would come from actual analytics
+      // For now, showing empty state
+      setEngagementData([]);
 
     } catch (error) {
       console.error('Error fetching admin data:', error);

@@ -44,7 +44,7 @@ const AuthPage: React.FC = () => {
     });
   };
 
-  // Demo credentials removed for production
+
 
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -169,7 +169,7 @@ const AuthPage: React.FC = () => {
               )}
             </button>
 
-            {/* Demo credentials removed for production */}
+
           </form>
 
           <div className="mt-6">
