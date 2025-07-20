@@ -12,6 +12,7 @@ import SessionsPage from './components/SessionsPage';
 import AnalyticsPage from './components/AnalyticsPage';
 import PreferencesPage from './components/PreferencesPage';
 import Leaderboard from './components/Leaderboard';
+import AdminSessionManager from './components/AdminSessionManager';
 import AuthCallback from './components/AuthCallback';
 import { User, AuthContextType } from './types/auth';
 
@@ -298,6 +299,7 @@ function App() {
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/auth" />} />
             <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/dashboard" />} />
+            <Route path="/admin/sessions" element={user?.role === 'admin' ? <AdminSessionManager /> : <Navigate to="/dashboard" />} />
             <Route path="/profile" element={user ? <ProfileSettings /> : <Navigate to="/auth" />} />
             <Route path="/session/:id" element={user ? <SessionView /> : <Navigate to="/auth" />} />
             <Route path="/sessions" element={user ? <SessionsPage /> : <Navigate to="/auth" />} />

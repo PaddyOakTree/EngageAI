@@ -5,8 +5,9 @@ import Header from './Header';
 import CreateSessionModal from './CreateSessionModal';
 import { 
   Users, TrendingUp, Calendar, MessageSquare, Brain, AlertTriangle, CheckCircle,
-  Trash2, Eye, Plus, Search, Download, BarChart3, Lock, Unlock
+  Trash2, Eye, Plus, Search, Download, BarChart3, Lock, Unlock, Settings
 } from 'lucide-react';
+import { getAIModelPerformance, generateDailyEngagementSummary } from '../lib/aiService';
 
 interface AdminStats {
   totalUsers: number;
@@ -197,51 +198,93 @@ const AdminDashboard: React.FC = () => {
         systemHealth: 'healthy'
       });
 
-      // Generate mock AI model stats (in real app, this would come from actual AI service logs)
-      const mockAIModels: AIModelStats[] = [
-        {
-          name: 'Google Gemini',
-          requests: 1247,
-          uptime: '99.8%',
-          avgResponse: '1.2s',
-          status: 'healthy',
-          lastUsed: new Date().toISOString(),
-          successRate: 98.5
-        },
-        {
-          name: 'Groq AI',
-          requests: 892,
-          uptime: '99.9%',
-          avgResponse: '0.8s',
-          status: 'healthy',
-          lastUsed: new Date().toISOString(),
-          successRate: 99.2
-        },
-        {
-          name: 'Local Fallback',
-          requests: 45,
-          uptime: '100%',
-          avgResponse: '2.1s',
-          status: 'healthy',
-          lastUsed: new Date().toISOString(),
-          successRate: 95.0
+      // Get real AI model performance data
+      const realAIModels = await getAIModelPerformance();
+      const processedAIModels: AIModelStats[] = realAIModels.map(model => ({
+        name: model.modelName,
+        requests: model.requestCount,
+        uptime: `${model.uptimePercentage.toFixed(1)}%`,
+        avgResponse: `${(model.avgResponseTime / 1000).toFixed(1)}s`,
+        status: model.uptimePercentage > 95 ? 'healthy' : model.uptimePercentage > 80 ? 'warning' : 'error',
+        lastUsed: model.lastUsed,
+        successRate: model.requestCount > 0 ? (model.successCount / model.requestCount) * 100 : 0
+      }));
+
+      // If no real data, add default models
+      if (processedAIModels.length === 0) {
+        processedAIModels.push(
+          {
+            name: 'Google Gemini',
+            requests: 0,
+            uptime: '100%',
+            avgResponse: '0.0s',
+            status: 'healthy',
+            lastUsed: new Date().toISOString(),
+            successRate: 0
+          },
+          {
+            name: 'Groq AI',
+            requests: 0,
+            uptime: '100%',
+            avgResponse: '0.0s',
+            status: 'healthy',
+            lastUsed: new Date().toISOString(),
+            successRate: 0
+          },
+          {
+            name: 'Local Fallback',
+            requests: 0,
+            uptime: '100%',
+            avgResponse: '0.0s',
+            status: 'healthy',
+            lastUsed: new Date().toISOString(),
+            successRate: 0
+          }
+        );
+      }
+
+      setAiModelStats(processedAIModels);
+
+      // Generate real engagement data from daily summaries
+      const { data: dailySummaries } = await supabase
+        .from('daily_engagement_summary')
+        .select('*')
+        .gte('date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+        .order('date', { ascending: true });
+
+      const realEngagementData: EngagementData[] = [];
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      
+      // Generate last 7 days of data
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dayName = days[date.getDay()];
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const summary = dailySummaries?.find(s => s.date === dateStr);
+        if (summary) {
+          realEngagementData.push({
+            day: dayName,
+            engagement: Math.round(summary.avg_engagement_score),
+            sessions: summary.total_sessions,
+            users: summary.total_participants
+          });
+        } else {
+          // Generate today's summary if it doesn't exist
+          if (i === 0) {
+            await generateDailyEngagementSummary();
+          }
+          realEngagementData.push({
+            day: dayName,
+            engagement: 0,
+            sessions: 0,
+            users: 0
+          });
         }
-      ];
+      }
 
-      setAiModelStats(mockAIModels);
-
-      // Generate mock engagement data
-      const mockEngagementData: EngagementData[] = [
-        { day: 'Mon', engagement: 85, sessions: 3, users: 45 },
-        { day: 'Tue', engagement: 92, sessions: 5, users: 52 },
-        { day: 'Wed', engagement: 78, sessions: 2, users: 38 },
-        { day: 'Thu', engagement: 88, sessions: 4, users: 47 },
-        { day: 'Fri', engagement: 95, sessions: 6, users: 61 },
-        { day: 'Sat', engagement: 82, sessions: 3, users: 29 },
-        { day: 'Sun', engagement: 89, sessions: 4, users: 41 }
-      ];
-
-      setEngagementData(mockEngagementData);
+      setEngagementData(realEngagementData);
 
     } catch (error) {
       console.error('Error fetching admin data:', error);
@@ -396,6 +439,34 @@ const AdminDashboard: React.FC = () => {
             <p className="text-red-800">{error}</p>
           </div>
         )}
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="flex flex-wrap gap-4">
+            <a
+              href="/admin/sessions"
+              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Session Manager
+            </a>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Session
+            </button>
+            <button
+              onClick={exportUserData}
+              className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Data
+            </button>
+          </div>
+        </div>
 
         {/* Navigation Tabs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">

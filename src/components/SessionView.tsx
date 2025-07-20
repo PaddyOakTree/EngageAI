@@ -2,7 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
-import { aiService, AIInsight } from '../lib/aiService';
+import aiService, { AIInsight, trackEngagement } from '../lib/aiService';
+import recordingService from '../lib/recordingService';
 import Header from './Header';
 import { 
   Video, 
@@ -322,6 +323,11 @@ const SessionView: React.FC = () => {
           })) || [];
 
         generateAiInsights(sessionData, processedQuestions, processedParticipants);
+        
+        // Track session engagement
+        if (sessionData.id) {
+          await trackEngagement(sessionData.id, user.id, engagementScore, 'session_join', 0);
+        }
       }
 
     } catch (error) {
@@ -351,8 +357,8 @@ const SessionView: React.FC = () => {
           : 0
       };
 
-      // Generate AI insights
-      const insights = await aiService.generateSessionInsights(analysisData, user.id);
+      // Generate AI insights with session ID for logging
+      const insights = await aiService.generateSessionInsights(analysisData, user.id, sessionData.id);
       setAiInsights(insights);
 
       // Analyze recent questions for sentiment if any exist
@@ -403,6 +409,9 @@ const SessionView: React.FC = () => {
         alert('Failed to join session');
         return;
       }
+
+      // Track engagement when joining session
+      await trackEngagement(session.id, user.id, engagementScore, 'session_join');
 
       setIsParticipating(true);
       alert('Successfully joined session!');
@@ -485,6 +494,9 @@ const SessionView: React.FC = () => {
         alert('Failed to ask question');
         return;
       }
+
+      // Track engagement when asking question
+      await trackEngagement(session.id, user.id, engagementScore, 'question');
 
       // Refresh questions list
       fetchSessionData();
@@ -579,13 +591,13 @@ const SessionView: React.FC = () => {
 
     try {
       setIsRecording(true);
-      // In a real implementation, this would integrate with a recording service
-      // For now, we'll simulate recording
-      setTimeout(() => {
-        setRecordingUrl('https://example.com/recording.mp4');
-        setIsRecording(false);
-      }, 3000);
-
+      
+      // Start real recording session
+      const recordingSession = await recordingService.startRecording(session.id);
+      
+      // Update UI with recording session info
+      setRecordingUrl(recordingSession.recordingUrl);
+      
       alert('Recording started!');
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -599,7 +611,14 @@ const SessionView: React.FC = () => {
 
     try {
       setIsRecording(false);
-      alert('Recording stopped!');
+      
+      // Stop real recording session
+      const completedRecording = await recordingService.stopRecording(session.id);
+      
+      // Update UI with completed recording info
+      setRecordingUrl(completedRecording.recordingUrl);
+      
+      alert(`Recording stopped! Duration: ${completedRecording.durationMinutes} minutes`);
     } catch (error) {
       console.error('Error stopping recording:', error);
       alert('Failed to stop recording');
