@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { AuthContext } from '../App';
 import { supabase, UserPreferences } from '../lib/supabase';
 import Header from './Header';
-import { Bell, Shield, Palette, Globe, Save, Brain, Key, Zap, Settings, Lock, Eye, EyeOff, Download, Trash2 } from 'lucide-react';
+import { Bell, Shield, Save, Brain, Key, Zap, Lock, Eye, EyeOff, Download, Trash2 } from 'lucide-react';
 
 const PreferencesPage: React.FC = () => {
   const auth = useContext(AuthContext);

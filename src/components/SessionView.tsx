@@ -151,6 +151,16 @@ const SessionView: React.FC = () => {
 
       setSession(sessionData);
 
+      // Set session timing information
+      if (sessionData.status === 'live') {
+        setIsSessionLive(true);
+        setSessionStartTime(new Date());
+      } else if (sessionData.status === 'completed') {
+        setIsSessionLive(false);
+        setSessionStartTime(new Date(sessionData.date + 'T' + sessionData.start_time));
+        setSessionEndTime(new Date(sessionData.date + 'T' + sessionData.end_time));
+      }
+
       // Check if user is participating
       if (user) {
         const { data: participation } = await supabase
@@ -223,8 +233,9 @@ const SessionView: React.FC = () => {
          setQuestions(processedQuestions);
        }
 
-      // Set engagement score
+      // Set engagement score and update analytics
       setEngagementScore(sessionData.engagement_score || 0);
+      updateSessionAnalytics();
 
       // Generate AI insights with real data
       if (user) {
@@ -483,8 +494,13 @@ const SessionView: React.FC = () => {
       ? (participants.length / session.attendees) * 100 
       : 0;
     
-    // Calculate session duration (mock calculation)
-    const sessionDuration = 90; // minutes
+    // Calculate session duration based on start and end times
+    let sessionDuration = 0;
+    if (sessionStartTime && sessionEndTime) {
+      sessionDuration = Math.round((sessionEndTime.getTime() - sessionStartTime.getTime()) / (1000 * 60));
+    } else if (sessionStartTime) {
+      sessionDuration = Math.round((new Date().getTime() - sessionStartTime.getTime()) / (1000 * 60));
+    }
 
     setSessionAnalytics({
       totalQuestions,
@@ -583,6 +599,11 @@ const SessionView: React.FC = () => {
               <h1 className="text-2xl font-bold text-gray-900">{session.title}</h1>
               <p className="text-gray-600 mt-1">
                 Hosted by {session.organizer} • {session.start_time} - {session.end_time}
+                {isSessionLive && sessionStartTime && (
+                  <span className="ml-2 text-green-600 font-medium">
+                    • Live for {Math.round((new Date().getTime() - sessionStartTime.getTime()) / (1000 * 60))} min
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -591,7 +612,7 @@ const SessionView: React.FC = () => {
                 <p className="text-sm text-gray-600">Attendees</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{session.engagement_score}%</p>
+                <p className="text-2xl font-bold text-green-600">{engagementScore}%</p>
                 <p className="text-sm text-gray-600">Engagement</p>
               </div>
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
@@ -785,7 +806,7 @@ const SessionView: React.FC = () => {
               </div>
               
               {/* Question Input */}
-              {isParticipating && session.status === 'live' && (
+              {isParticipating && session.status === 'live' && showQuestionInput && (
                 <div className="mb-4">
                   <form onSubmit={handleQuestionSubmit} className="flex space-x-2">
                     <input
@@ -804,6 +825,16 @@ const SessionView: React.FC = () => {
                     </button>
                   </form>
                 </div>
+              )}
+              
+              {/* Toggle Question Input */}
+              {isParticipating && session.status === 'live' && (
+                <button
+                  onClick={() => setShowQuestionInput(!showQuestionInput)}
+                  className="w-full mb-4 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  {showQuestionInput ? 'Hide Question Input' : 'Show Question Input'}
+                </button>
               )}
               
               <div className="space-y-3">
@@ -828,12 +859,32 @@ const SessionView: React.FC = () => {
               </div>
             </div>
 
-            {/* Session Analytics */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Session Analytics</h3>
-                <TrendingUp className="w-5 h-5 text-gray-400" />
-              </div>
+                          {/* Session Analytics */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Session Analytics</h3>
+                  <TrendingUp className="w-5 h-5 text-gray-400" />
+                </div>
+                
+                {/* Recording URL Display */}
+                {recordingUrl && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+                        <span className="text-sm font-medium text-green-800">Recording Available</span>
+                      </div>
+                      <a
+                        href={recordingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-green-600 hover:text-green-800 underline"
+                      >
+                        View Recording
+                      </a>
+                    </div>
+                  </div>
+                )}
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Total Questions:</span>
