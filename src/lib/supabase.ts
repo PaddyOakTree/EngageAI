@@ -43,3 +43,13 @@ export interface UserPreferences {
   created_at: string;
   updated_at: string;
 }
+
+export interface SessionChatMessage {
+  id: string;
+  session_id: string;
+  user_id: string;
+  message_content: string;
+  sender_name: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  created_at: string;
+}

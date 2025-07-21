@@ -4,6 +4,7 @@ import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
 import aiService, { AIInsight, trackEngagement } from '../lib/aiService';
 import recordingService from '../lib/recordingService';
+import JitsiMeeting, { JitsiMeetingRef } from './JitsiMeeting';
 import Header from './Header';
 import { 
   Video, 
@@ -84,6 +85,8 @@ const SessionView: React.FC = () => {
   });
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [showJitsiMeeting, setShowJitsiMeeting] = useState(false);
+  const jitsiRef = useRef<JitsiMeetingRef>(null);
   
   // Role-based features
   const [isModerator, setIsModerator] = useState(false);
@@ -414,6 +417,12 @@ const SessionView: React.FC = () => {
       await trackEngagement(session.id, user.id, engagementScore, 'session_join');
 
       setIsParticipating(true);
+      
+      // Show Jitsi meeting if session is live
+      if (session.status === 'live') {
+        setShowJitsiMeeting(true);
+      }
+      
       alert('Successfully joined session!');
     } catch (error) {
       console.error('Error joining session:', error);
@@ -441,6 +450,12 @@ const SessionView: React.FC = () => {
 
       setIsSessionLive(true);
       setSessionStartTime(new Date());
+      
+      // Show Jitsi meeting when session starts
+      if (isParticipating) {
+        setShowJitsiMeeting(true);
+      }
+      
       alert('Session started successfully!');
     } catch (error) {
       console.error('Error starting session:', error);
@@ -468,6 +483,7 @@ const SessionView: React.FC = () => {
 
       setIsSessionLive(false);
       setSessionEndTime(new Date());
+      setShowJitsiMeeting(false);
       alert('Session ended successfully!');
     } catch (error) {
       console.error('Error ending session:', error);
@@ -590,15 +606,17 @@ const SessionView: React.FC = () => {
     if (!session) return;
 
     try {
-      setIsRecording(true);
-      
-      // Start real recording session
-      const recordingSession = await recordingService.startRecording(session.id);
-      
-      // Update UI with recording session info
-      setRecordingUrl(recordingSession.recordingUrl);
-      
-      alert('Recording started!');
+      if (jitsiRef.current) {
+        jitsiRef.current.startRecording();
+        setIsRecording(true);
+        alert('Recording started!');
+      } else {
+        // Fallback to service recording
+        const recordingSession = await recordingService.startRecording(session.id);
+        setRecordingUrl(recordingSession.recordingUrl);
+        setIsRecording(true);
+        alert('Recording started!');
+      }
     } catch (error) {
       console.error('Error starting recording:', error);
       alert('Failed to start recording');
@@ -610,15 +628,17 @@ const SessionView: React.FC = () => {
     if (!session) return;
 
     try {
-      setIsRecording(false);
-      
-      // Stop real recording session
-      const completedRecording = await recordingService.stopRecording(session.id);
-      
-      // Update UI with completed recording info
-      setRecordingUrl(completedRecording.recordingUrl);
-      
-      alert(`Recording stopped! Duration: ${completedRecording.durationMinutes} minutes`);
+      if (jitsiRef.current) {
+        jitsiRef.current.stopRecording();
+        setIsRecording(false);
+        alert('Recording stopped!');
+      } else {
+        // Fallback to service recording
+        const completedRecording = await recordingService.stopRecording(session.id);
+        setRecordingUrl(completedRecording.recordingUrl);
+        setIsRecording(false);
+        alert(`Recording stopped! Duration: ${completedRecording.durationMinutes} minutes`);
+      }
     } catch (error) {
       console.error('Error stopping recording:', error);
       alert('Failed to stop recording');
@@ -723,6 +743,50 @@ const SessionView: React.FC = () => {
       console.error('Error loading system metrics:', error);
       alert('Failed to load system metrics');
     }
+  };
+
+  // Jitsi event handlers
+  const handleParticipantJoined = (participant: any) => {
+    console.log('Participant joined meeting:', participant);
+    // Refresh session data to update participant count
+    fetchSessionData();
+  };
+
+  const handleParticipantLeft = (participant: any) => {
+    console.log('Participant left meeting:', participant);
+    // Refresh session data to update participant count
+    fetchSessionData();
+  };
+
+  const handleChatMessage = async (message: any) => {
+    console.log('Chat message received:', message);
+    
+    // Analyze sentiment of chat message using AI
+    if (user && message.message) {
+      try {
+        const sentiment = await aiService.analyzeSentiment(message.message, user.id);
+        console.log('Chat message sentiment:', sentiment);
+        
+        // Track engagement for chat participation
+        await trackEngagement(session!.id, user.id, engagementScore + 5, 'chat');
+      } catch (error) {
+        console.error('Error analyzing chat sentiment:', error);
+      }
+    }
+    
+    // Refresh session data to update analytics
+    fetchSessionData();
+  };
+
+  const handleMeetingStarted = () => {
+    console.log('Meeting started successfully');
+    setIsSessionLive(true);
+  };
+
+  const handleMeetingEnded = () => {
+    console.log('Meeting ended');
+    setShowJitsiMeeting(false);
+    setIsSessionLive(false);
   };
 
   // Helper function to get meeting platform info
@@ -839,43 +903,42 @@ const SessionView: React.FC = () => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
               <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center mb-4">
-                {session.meeting_url && session.status === 'live' ? (
+                {showJitsiMeeting && isParticipating && session.status === 'live' ? (
+                  <div className="w-full h-full">
+                    <JitsiMeeting
+                      ref={jitsiRef}
+                      roomName={`engageai-${session.id}`}
+                      displayName={user?.name || 'Anonymous'}
+                      sessionId={session.id}
+                      userId={user?.id || ''}
+                      onParticipantJoined={handleParticipantJoined}
+                      onParticipantLeft={handleParticipantLeft}
+                      onChatMessageReceived={handleChatMessage}
+                      onMeetingStarted={handleMeetingStarted}
+                      onMeetingEnded={handleMeetingEnded}
+                    />
+                  </div>
+                ) : session.meeting_url && session.status === 'live' && !isParticipating ? (
                   <div className="w-full h-full flex flex-col items-center justify-center text-white">
-                    {(() => {
-                      const platformInfo = getMeetingPlatformInfo(session.meeting_url);
-                      return (
-                        <>
-                          <div className="text-4xl mb-4">{platformInfo.icon}</div>
-                          <p className="text-lg font-medium mb-2">{platformInfo.platform}</p>
-                          <p className="text-sm opacity-75 mb-4">{platformInfo.instructions}</p>
-                          <a
-                            href={session.meeting_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
-                          >
-                            Join Meeting
-                          </a>
-                        </>
-                      );
-                    })()}
+                    <div className="text-4xl mb-4">🎥</div>
+                    <p className="text-lg font-medium mb-2">Jitsi Meet Session</p>
+                    <p className="text-sm opacity-75 mb-4">Join the session to participate in the meeting</p>
+                    <button
+                      onClick={joinSession}
+                      className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      Join Session
+                    </button>
                   </div>
                 ) : session.meeting_url && session.status === 'upcoming' ? (
                   <div className="text-center text-white">
-                    {(() => {
-                      const platformInfo = getMeetingPlatformInfo(session.meeting_url);
-                      return (
-                        <>
-                          <div className="text-4xl mb-4">{platformInfo.icon}</div>
-                          <p className="text-lg font-medium">{platformInfo.platform}</p>
-                          <p className="text-sm opacity-75 mb-4">Meeting link will be available when session starts</p>
-                          <div className="bg-gray-800 rounded-lg p-4 max-w-md mx-auto">
-                            <p className="text-xs text-gray-300 mb-2">Meeting Link:</p>
-                            <p className="text-sm font-mono text-gray-400 break-all">{session.meeting_url}</p>
-                          </div>
-                        </>
-                      );
-                    })()}
+                    <div className="text-4xl mb-4">🎥</div>
+                    <p className="text-lg font-medium">Jitsi Meet Session</p>
+                    <p className="text-sm opacity-75 mb-4">Meeting will be available when session starts</p>
+                    <div className="bg-gray-800 rounded-lg p-4 max-w-md mx-auto">
+                      <p className="text-xs text-gray-300 mb-2">Room:</p>
+                      <p className="text-sm font-mono text-gray-400">engageai-{session.id}</p>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center text-white">
@@ -889,14 +952,26 @@ const SessionView: React.FC = () => {
               {/* Controls */}
               <div className="flex items-center justify-center space-x-4">
                 <button
-                  onClick={() => setIsAudioOn(!isAudioOn)}
-                  className={`p-3 rounded-full ${isAudioOn ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                  onClick={() => {
+                    if (jitsiRef.current) {
+                      jitsiRef.current.toggleAudio();
+                    } else {
+                      setIsAudioOn(!isAudioOn);
+                    }
+                  }}
+                  className={`p-3 rounded-full ${isAudioOn ? 'bg-gray-200 text-gray-700' : 'bg-red-500 text-white'}`}
                 >
                   {isAudioOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
                 </button>
                 <button
-                  onClick={() => setIsVideoOn(!isVideoOn)}
-                  className={`p-3 rounded-full ${isVideoOn ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+                  onClick={() => {
+                    if (jitsiRef.current) {
+                      jitsiRef.current.toggleVideo();
+                    } else {
+                      setIsVideoOn(!isVideoOn);
+                    }
+                  }}
+                  className={`p-3 rounded-full ${isVideoOn ? 'bg-gray-200 text-gray-700' : 'bg-red-500 text-white'}`}
                 >
                   {isVideoOn ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5" />}
                 </button>
@@ -930,6 +1005,22 @@ const SessionView: React.FC = () => {
                 <button className="p-3 rounded-full bg-gray-200 text-gray-700">
                   <Share2 className="w-5 h-5" />
                 </button>
+                
+                {/* Hang up button for active meetings */}
+                {showJitsiMeeting && (
+                  <button
+                    onClick={() => {
+                      if (jitsiRef.current) {
+                        jitsiRef.current.hangUp();
+                      }
+                      setShowJitsiMeeting(false);
+                    }}
+                    className="p-3 rounded-full bg-red-600 text-white hover:bg-red-700"
+                    title="Leave Meeting"
+                  >
+                    📞
+                  </button>
+                )}
               </div>
 
               {/* Session Management Buttons */}
@@ -940,6 +1031,15 @@ const SessionView: React.FC = () => {
                     className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
                   >
                     Join Session
+                  </button>
+                )}
+                
+                {isParticipating && session.status === 'live' && !showJitsiMeeting && (
+                  <button
+                    onClick={() => setShowJitsiMeeting(true)}
+                    className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Enter Meeting
                   </button>
                 )}
                 
@@ -1119,6 +1219,47 @@ const SessionView: React.FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Meeting Chat</h3>
+                <MessageSquare className="w-5 h-5 text-gray-400" />
+              </div>
+              
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {chatMessages.length > 0 ? (
+                  chatMessages.map((message) => (
+                    <div key={message.id} className="p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-start justify-between mb-2">
+                        <p className="text-sm font-medium text-gray-900">{message.sender_name}</p>
+                        <span className="text-xs text-gray-500">
+                          {new Date(message.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">{message.message_content}</p>
+                      {message.sentiment && (
+                        <div className="mt-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            message.sentiment === 'positive' ? 'bg-green-100 text-green-800' :
+                            message.sentiment === 'negative' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {message.sentiment}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4">
+                    <MessageSquare className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No chat messages yet</p>
+                    <p className="text-xs text-gray-400">Messages will appear here during the meeting</p>
+                  </div>
+                )}
               </div>
             </div>
 

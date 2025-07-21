@@ -306,7 +306,7 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
             {formData.type !== 'in-person' && (
               <div>
                 <label htmlFor="meeting_url" className="block text-sm font-medium text-gray-700 mb-2">
-                  Meeting URL {formData.type === 'virtual' ? '*' : ''}
+                  Meeting URL (Optional - Jitsi Meet will be used by default)
                 </label>
                 <div className="relative">
                   <Video className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -314,13 +314,15 @@ const CreateSessionModal: React.FC<CreateSessionModalProps> = ({ isOpen, onClose
                     type="url"
                     id="meeting_url"
                     name="meeting_url"
-                    required={formData.type === 'virtual'}
                     value={formData.meeting_url}
                     onChange={handleInputChange}
                     className="pl-10 w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="https://zoom.us/j/..."
+                    placeholder="Leave empty to use built-in Jitsi Meet"
                   />
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  If no URL is provided, an embedded Jitsi Meet room will be created automatically
+                </p>
               </div>
             )}
 
