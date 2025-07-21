@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 // Declare JitsiMeetExternalAPI as a global variable
