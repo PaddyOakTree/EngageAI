@@ -82,20 +82,71 @@ const JitsiMeeting = forwardRef<JitsiMeetingRef, JitsiMeetingProps>(({
     }
   }));
 
+  // Network check function
+  const checkNetworkConnectivity = async () => {
+    try {
+      console.log('[Jitsi] Checking network connectivity...');
+      
+      // Test JaaS (8x8.vc) domain connectivity
+      await fetch('https://8x8.vc/vpaas-magic-cookie-0bbaed97bee948e59c0ee2d99954fc7c/external_api.js', {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-cache'
+      });
+      
+      console.log('[JaaS] 8x8.vc server reachable');
+      return true;
+    } catch (error) {
+      console.error('[JaaS] Network connectivity check failed:', error);
+      setError('Network connectivity issue detected. Unable to reach 8x8.vc. Please check your internet connection.');
+      return false;
+    }
+  };
+
   useEffect(() => {
-    const loadJitsiScript = () => {
+    const loadJitsiScript = async () => {
+      // First check network connectivity
+      const isOnline = await checkNetworkConnectivity();
+      if (!isOnline) return Promise.reject(new Error('Network connectivity check failed'));
+
       return new Promise<void>((resolve, reject) => {
+        console.log('[Jitsi] Loading Jitsi Meet API...');
+        
         // Check if Jitsi script is already loaded
         if (window.JitsiMeetExternalAPI) {
+          console.log('[Jitsi] Jitsi API already loaded');
           resolve();
           return;
         }
 
         const script = document.createElement('script');
-        script.src = 'https://meet.jit.si/external_api.js';
+        script.src = 'https://8x8.vc/vpaas-magic-cookie-0bbaed97bee948e59c0ee2d99954fc7c/external_api.js';
         script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load Jitsi Meet API'));
+        
+        script.onload = () => {
+          console.log('[Jitsi] Jitsi Meet API loaded successfully');
+          resolve();
+        };
+        
+        script.onerror = (error) => {
+          console.error('[Jitsi] Failed to load Jitsi Meet API:', error);
+          reject(new Error('Failed to load Jitsi Meet API. Please check your network connection or try again later.'));
+        };
+        
+        // Set timeout for script loading
+        const timeoutId = setTimeout(() => {
+          console.error('[Jitsi] Jitsi Meet API loading timeout');
+          document.head.removeChild(script);
+          reject(new Error('Jitsi Meet API loading timeout. Please check your network connection.'));
+        }, 10000); // 10 seconds timeout
+        
+        script.onload = () => {
+          clearTimeout(timeoutId);
+          console.log('[Jitsi] Jitsi Meet API loaded successfully');
+          resolve();
+        };
+        
+        console.log('[Jitsi] Appending Jitsi script to document head');
         document.head.appendChild(script);
       });
     };
@@ -114,9 +165,12 @@ const JitsiMeeting = forwardRef<JitsiMeetingRef, JitsiMeetingProps>(({
         // Clear any existing content
         jitsiContainerRef.current.innerHTML = '';
 
-        const domain = 'meet.jit.si';
+        const domain = '8x8.vc';
         const options = {
-          roomName: roomName,
+          roomName: `vpaas-magic-cookie-0bbaed97bee948e59c0ee2d99954fc7c/${roomName}`,
+          // If you want to use JWT authentication, uncomment the following line
+          // jwt: 'your-generated-jwt-token',
+          
           width: '100%',
           height: '100%',
           parentNode: jitsiContainerRef.current,
@@ -255,8 +309,7 @@ const JitsiMeeting = forwardRef<JitsiMeetingRef, JitsiMeetingProps>(({
             console.error('Error updating engagement data:', error);
           }
 
-          onMeetingStarted?.(
-          );
+          onMeetingStarted?.();
         });
 
         jitsiApi.addEventListener('videoConferenceLeft', async () => {
@@ -338,8 +391,8 @@ const JitsiMeeting = forwardRef<JitsiMeetingRef, JitsiMeetingProps>(({
         });
 
       } catch (err) {
-        console.error('Error initializing Jitsi:', err);
-        setError(err instanceof Error ? err.message : 'Failed to initialize meeting');
+        console.error('Error initializing 8x8 Video Conference:', err);
+        setError(err instanceof Error ? err.message : 'Failed to initialize 8x8 Video Conference');
         setIsLoading(false);
       }
     };
@@ -356,17 +409,41 @@ const JitsiMeeting = forwardRef<JitsiMeetingRef, JitsiMeetingProps>(({
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full bg-red-50 rounded-lg">
-        <div className="text-center">
-          <div className="text-red-600 mb-2">⚠️</div>
-          <p className="text-red-800 font-medium">Meeting Error</p>
-          <p className="text-red-600 text-sm">{error}</p>
+      <div className="flex flex-col items-center justify-center h-full bg-red-50 p-6 rounded-lg space-y-4">
+        <div className="text-red-600 text-4xl mb-4">⚠️</div>
+        <h2 className="text-xl font-bold text-red-800">Meeting Connection Error</h2>
+        <p className="text-red-600 text-center">{error}</p>
+        
+        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+          <h3 className="font-medium text-yellow-800 mb-2">Troubleshooting Steps:</h3>
+          <ol className="list-decimal list-inside text-sm text-yellow-700 space-y-1">
+            <li>Check your internet connection</li>
+            <li>Try refreshing the page</li>
+            <li>Ensure meet.jit.si is not blocked by your network</li>
+            <li>Try using a different browser</li>
+          </ol>
+        </div>
+        
+        <div className="flex space-x-4 mt-6">
           <button
             onClick={() => window.location.reload()}
-            className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
-            Retry
+            Try Again
           </button>
+          <button
+            onClick={() => window.open('https://meet.jit.si', '_blank')}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Test Jitsi Directly
+          </button>
+        </div>
+        
+        <div className="mt-6 text-xs text-gray-500">
+          <p>If the problem persists, please contact support with the following details:</p>
+          <p className="mt-1 font-mono bg-gray-100 p-2 rounded">
+            Session: {sessionId} | User: {userId || 'Not authenticated'}
+          </p>
         </div>
       </div>
     );
@@ -374,11 +451,26 @@ const JitsiMeeting = forwardRef<JitsiMeetingRef, JitsiMeetingProps>(({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading meeting...</p>
-          <p className="text-gray-500 text-sm">Connecting to Jitsi Meet</p>
+      <div className="flex flex-col items-center justify-center h-full bg-gray-50 p-6 rounded-lg space-y-4">
+        <div className="relative">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-600"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-10 w-10 bg-indigo-100 rounded-full"></div>
+          </div>
+        </div>
+        <div className="text-center space-y-1">
+          <h3 className="text-lg font-medium text-gray-800">Setting up your meeting room</h3>
+          <p className="text-sm text-gray-600">This may take a moment...</p>
+          <div className="pt-4">
+            <div className="h-1 w-32 bg-gray-200 rounded-full overflow-hidden mx-auto">
+              <div className="h-full bg-indigo-600 rounded-full animate-pulse" style={{ width: '70%' }}></div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 text-xs text-gray-500 space-y-1 text-center">
+          <p>Checking network connection...</p>
+          <p>Loading Jitsi Meet API...</p>
+          <p>Initializing video session...</p>
         </div>
       </div>
     );
