@@ -38,6 +38,19 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
   useEffect(() => {
     fetchLeaderboard();
   }, [timeframe, organization, selectedMetric, user]);
+  
+  // Enhanced debugging function to log the leaderboard data
+  useEffect(() => {
+    console.log('Current leaderboard data:', leaderboard);
+    console.log('Leaderboard length:', leaderboard.length);
+    console.log('Current user rank:', currentUserRank);
+    // Check if we have real data
+    if (leaderboard.length === 0) {
+      console.warn('Leaderboard is empty - check database or query');
+    } else if (leaderboard.length === 1) {
+      console.warn('Leaderboard only has one user - likely filtering issue');
+    }
+  }, [leaderboard, currentUserRank]);
 
   const fetchLeaderboard = async () => {
     try {
@@ -49,12 +62,27 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       let data;
       let fetchError;
 
+      // First verify we have multiple users with engagement scores
+      const { count } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact' })
+        .not('engagement_score', 'is', null);
+      
+      console.log(`Found ${count} profiles with engagement scores`);
+      
+      if (count === 0) {
+        setError('No users with engagement scores found');
+        setLoading(false);
+        return;
+      }
+
       if (timeframe === 'all-time') {
         // Use profiles table for all-time leaderboard
         let query = supabase
           .from('profiles')
           .select('id, name, avatar_url, organization, engagement_score, total_events, badges')
           .not('engagement_score', 'is', null);
+          // We're not filtering by privacy_enabled anymore to ensure all users are displayed
 
         // Filter by organization if specified
         if (organization) {
@@ -145,6 +173,13 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         rank: index + 1
       }));
 
+      console.log(`Processing ${rankedData.length} leaderboard entries`);
+      
+      // Ensure we're actually getting data from the database
+      if (rankedData.length === 0) {
+        console.error('No leaderboard data found after processing');
+      }
+
       setLeaderboard(rankedData);
 
       // Find current user's rank if they're not in the top results
@@ -156,6 +191,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           const { data: allUsers, error: rankError } = await supabase
             .from('profiles')
             .select('id, name, avatar_url, organization, engagement_score, total_events, badges')
+            // Do not apply any privacy filters when calculating ranks
             .order(selectedMetric === 'engagement' ? 'engagement_score' : 'total_events', { ascending: false });
 
           if (!rankError && allUsers) {
@@ -281,6 +317,9 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
                 ? 'No users with engagement data found' 
                 : `No activity found in the ${timeframe === 'weekly' ? 'last 7 days' : 'last 30 days'}`
               }
+            </p>
+            <p className="text-xs text-red-500 mt-2">
+              Debug info: User ID {user?.id || 'none'}, Query Type {timeframe}, Metric {selectedMetric}
             </p>
           </div>
         ) : (

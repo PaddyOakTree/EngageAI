@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
 import { supabase } from '../lib/supabase';
@@ -103,6 +103,15 @@ const SessionView: React.FC = () => {
     canAccessSystemMetrics: false,
     canGenerateReports: false
   });
+
+  // Chat messages
+  const [chatMessages, setChatMessages] = useState<Array<{
+    id: string;
+    sender_id: string;
+    sender_name: string;
+    message: string;
+    created_at: string;
+  }>>([]);
 
   useEffect(() => {
     if (id) {
@@ -758,8 +767,34 @@ const SessionView: React.FC = () => {
     fetchSessionData();
   };
 
-  const handleChatMessage = async (message: any) => {
+  const handleMeetingStarted = () => {
+    console.log('Meeting started successfully');
+    setIsSessionLive(true);
+  };
+
+  const handleMeetingEnded = () => {
+    console.log('Meeting ended');
+    setShowJitsiMeeting(false);
+    setIsSessionLive(false);
+  };
+
+  const handleChatMessage = async (message: { id?: string; sender?: { id: string; name: string }; message?: string; timestamp?: number }) => {
     console.log('Chat message received:', message);
+    
+    // Add new message to chatMessages state
+    if (message.sender && typeof message.message === 'string') {
+      const { id, sender, message: messageText, timestamp } = message;
+      setChatMessages(prevMessages => [
+        ...prevMessages,
+        {
+          id: id || `msg-${Date.now()}`,
+          sender_id: sender.id,
+          sender_name: sender.name,
+          message: messageText, // We've already verified this is a string in the if condition
+          created_at: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString()
+        }
+      ] as { id: string; sender_id: string; sender_name: string; message: string; created_at: string; }[]);
+    }
     
     // Analyze sentiment of chat message using AI
     if (user && message.message) {
@@ -776,46 +811,6 @@ const SessionView: React.FC = () => {
     
     // Refresh session data to update analytics
     fetchSessionData();
-  };
-
-  const handleMeetingStarted = () => {
-    console.log('Meeting started successfully');
-    setIsSessionLive(true);
-  };
-
-  const handleMeetingEnded = () => {
-    console.log('Meeting ended');
-    setShowJitsiMeeting(false);
-    setIsSessionLive(false);
-  };
-
-  // Helper function to get meeting platform info
-  const getMeetingPlatformInfo = (meetingUrl: string) => {
-    if (meetingUrl.includes('meet.google.com')) {
-      return {
-        platform: 'Google Meet',
-        icon: '🎥',
-        instructions: 'Click "Join Meeting" to open Google Meet in a new tab'
-      };
-    } else if (meetingUrl.includes('zoom.us')) {
-      return {
-        platform: 'Zoom',
-        icon: '📹',
-        instructions: 'Click "Join Meeting" to open Zoom in a new tab'
-      };
-    } else if (meetingUrl.includes('teams.microsoft.com')) {
-      return {
-        platform: 'Microsoft Teams',
-        icon: '💼',
-        instructions: 'Click "Join Meeting" to open Teams in a new tab'
-      };
-    } else {
-      return {
-        platform: 'External Meeting',
-        icon: '🔗',
-        instructions: 'Click "Join Meeting" to open the meeting link'
-      };
-    }
   };
 
   if (loading) {
@@ -1239,26 +1234,11 @@ const SessionView: React.FC = () => {
                           {new Date(message.created_at).toLocaleTimeString()}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">{message.message_content}</p>
-                      {message.sentiment && (
-                        <div className="mt-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            message.sentiment === 'positive' ? 'bg-green-100 text-green-800' :
-                            message.sentiment === 'negative' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {message.sentiment}
-                          </span>
-                        </div>
-                      )}
+                      <p className="text-sm text-gray-600">{message.message}</p>
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-4">
-                    <MessageSquare className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No chat messages yet</p>
-                    <p className="text-xs text-gray-400">Messages will appear here during the meeting</p>
-                  </div>
+                  <p className="text-sm text-gray-500">No chat messages yet</p>
                 )}
               </div>
             </div>
